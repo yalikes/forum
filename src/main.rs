@@ -1,12 +1,28 @@
 #[macro_use]
 extern crate diesel;
 
-use std::env;
+use std::net::SocketAddr;
+use std::{env};
 
 use axum::{
-    body::StreamBody, extract::Extension, extract::Form, http::StatusCode, response::Html,
-    response::IntoResponse, routing::get, Router,
+    async_trait,
+    body::StreamBody,
+    extract::Form,
+    extract::{Extension, FromRequest, RequestParts},
+    headers::Cookie,
+    http::{
+        self,
+        header::{HeaderMap, HeaderValue},
+        StatusCode,
+    },
+    response::Html,
+    response::IntoResponse,
+    routing::get,
+    Router, TypedHeader,
 };
+
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
 use hyper::header;
 use tokio_util::io::ReaderStream;
 
@@ -25,10 +41,19 @@ mod utils;
 use models::InsertableUser;
 use utils::generate_salt_and_hash;
 
+const SESSON_COOKIE_NAME: &str = "session_id";
 #[tokio::main]
 async fn main() {
     dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must set");
+
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::EnvFilter::new(
+            std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into()),
+        ))
+        .with(tracing_subscriber::fmt::layer())
+        .init();
+
     let pool = Pool::builder()
         .max_size(1)
         .build(ConnectionManager::<SqliteConnection>::new(database_url))
@@ -42,11 +67,13 @@ async fn main() {
     };
     let app = Router::new()
         .route("/", get(index))
-        .route("/login", get())
+        .route("/login", get(login))
         .route("/register", get(register).post(register_post))
         .layer(Extension((tera, pool)));
 
-    axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
+    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    tracing::debug!("listening on {}", addr);
+    axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
         .unwrap();
@@ -76,6 +103,26 @@ async fn register() -> impl IntoResponse {
     Ok(([(header::CONTENT_TYPE, "text/html")], body))
 }
 
+async fn login(session_id: SessionId) -> impl IntoResponse {
+    let mut header = HeaderMap::new();
+    let file = match tokio::fs::File::open("dist/login.html").await {
+        Ok(file) => file,
+        Err(err) => return Err((StatusCode::NOT_FOUND, format!("File not found: {}", err))),
+    };
+    tracing::debug!("inside login() session_id {}", session_id.session_id);
+    header.insert(
+        http::header::SET_COOKIE,
+        HeaderValue::from_str(format!("SessionId=123454321").as_ref()).unwrap(),
+    );
+    header.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_str("text/html").unwrap(),
+    );
+    let stream = ReaderStream::new(file);
+    let body = StreamBody::new(stream);
+
+    Ok((StatusCode::OK, header, body))
+}
 #[derive(Deserialize)]
 struct RegisterStruct {
     username: String,
@@ -128,6 +175,42 @@ fn register_user(username: &str, password: &str, pool: Pool<ConnectionManager<Sq
         .unwrap();
 }
 
-async fn login_handler(){
 
+
+// enum UserIdFromSession{
+//     FoundUserId(i32),
+//     NotFound,
+// }
+
+struct SessionId {
+    session_id: u64,
+}
+
+#[async_trait]
+impl<B> FromRequest<B> for SessionId
+where
+    B: Send,
+{
+    type Rejection = (StatusCode, String);
+    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
+        let cookie = Option::<TypedHeader<Cookie>>::from_request(req)
+            .await
+            .unwrap();
+        tracing::debug!("{}", format!("{:?}", &cookie));
+        let session_cookie = cookie.as_ref().and_then(|cookie| cookie.get("SessionId"));
+        match session_cookie {
+            None => {
+                return Ok(SessionId { session_id: 0 });
+            }
+            Some(session_id_str) => {
+                let session_id: u64 = match session_id_str.parse() {
+                    Ok(id) => id,
+                    Err(e) => {
+                        return Err((StatusCode::NOT_FOUND, format!("session id parse error: {:?}", e)));
+                    }
+                };
+                return Ok(SessionId { session_id });
+            }
+        }
+    }
 }
