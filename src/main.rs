@@ -41,7 +41,7 @@ mod utils;
 use models::InsertableUser;
 use utils::generate_salt_and_hash;
 
-const SESSON_COOKIE_NAME: &str = "session_id";
+const SESSON_ID_COOKIE_NAME: &str = "session_id";
 #[tokio::main]
 async fn main() {
     dotenv().ok();
