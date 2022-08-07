@@ -1,1 +1,1 @@
-this repository is a excies of wev dev
+this repository is a excies of web dev
