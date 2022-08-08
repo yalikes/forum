@@ -2,7 +2,8 @@
 extern crate diesel;
 
 use std::net::SocketAddr;
-use std::{env};
+use std::{collections::HashMap, env};
+use std::sync::{RwLock, Arc};
 
 use axum::{
     async_trait,
@@ -11,7 +12,6 @@ use axum::{
     extract::{Extension, FromRequest, RequestParts},
     headers::Cookie,
     http::{
-        self,
         header::{HeaderMap, HeaderValue},
         StatusCode,
     },
@@ -21,6 +21,7 @@ use axum::{
     Router, TypedHeader,
 };
 
+use tokio::io::AsyncReadExt;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use hyper::header;
@@ -32,6 +33,8 @@ use tera::{Context, Tera};
 
 use serde::Deserialize;
 
+use uuid::Uuid;
+
 use dotenv::dotenv;
 
 mod models;
@@ -41,11 +44,16 @@ mod utils;
 use models::InsertableUser;
 use utils::generate_salt_and_hash;
 
+use crate::utils::check;
+
 const SESSON_ID_COOKIE_NAME: &str = "session_id";
 #[tokio::main]
 async fn main() {
     dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must set");
+    let sessions: HashMap<SessionId, (i32, f32)> = HashMap::new(); //session_id => (userId, expr time limit)
+    let sessions:Arc<RwLock<HashMap<Uuid,(i32, f32)>>> = Arc::new(RwLock::new(sessions));
+    let sessions_ptr = sessions.clone();
 
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
@@ -67,9 +75,10 @@ async fn main() {
     };
     let app = Router::new()
         .route("/", get(index))
-        .route("/login", get(login))
+        .route("/login", get(login).post(login_post))
         .route("/register", get(register).post(register_post))
-        .layer(Extension((tera, pool)));
+        .layer(Extension((tera, pool)))
+        .layer(Extension(sessions_ptr));
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     tracing::debug!("listening on {}", addr);
@@ -103,30 +112,112 @@ async fn register() -> impl IntoResponse {
     Ok(([(header::CONTENT_TYPE, "text/html")], body))
 }
 
-async fn login(session_id: SessionId) -> impl IntoResponse {
+async fn login(
+    may_user_id: UserIdFromSession,
+    Extension((_, pool)): Extension<(Tera, Pool<ConnectionManager<SqliteConnection>>)>,
+) -> impl IntoResponse {
+    use schema::users::dsl::{name, users};
+    tracing::debug!("{:?}", may_user_id);
+    if let UserIdFromSession::FoundUserId(user_id) = may_user_id {
+        if let Ok(my_user_name) = users
+            .find(user_id)
+            .select(name)
+            .get_result::<String>(&pool.get().unwrap())
+        {
+            return Ok((StatusCode::OK, HeaderMap::new(), my_user_name));
+        }
+    }
     let mut header = HeaderMap::new();
-    let file = match tokio::fs::File::open("dist/login.html").await {
+    let mut file = match tokio::fs::File::open("dist/login.html").await {
         Ok(file) => file,
         Err(err) => return Err((StatusCode::NOT_FOUND, format!("File not found: {}", err))),
     };
-    tracing::debug!("inside login() session_id {}", session_id.session_id);
-    header.insert(
-        http::header::SET_COOKIE,
-        HeaderValue::from_str(format!("SessionId=123454321").as_ref()).unwrap(),
-    );
+    // tracing::debug!("inside login() session_id {:?}", may_user_id);
     header.insert(
         header::CONTENT_TYPE,
         HeaderValue::from_str("text/html").unwrap(),
     );
-    let stream = ReaderStream::new(file);
-    let body = StreamBody::new(stream);
+    let mut body = String::new();
+    file.read_to_string(&mut body).await.unwrap();
 
-    Ok((StatusCode::OK, header, body))
+    return Ok((StatusCode::OK, header, body));
 }
 #[derive(Deserialize)]
 struct RegisterStruct {
     username: String,
     password: String,
+}
+
+#[derive(Deserialize)]
+struct LoginInfo {
+    username: String,
+    password: String,
+}
+
+async fn login_post(
+    Form(login_info): Form<LoginInfo>,
+    Extension((_, pool)): Extension<(Tera, Pool<ConnectionManager<SqliteConnection>>)>,
+    Extension(mut sessions): Extension<Arc<RwLock<HashMap<Uuid,(i32, f32)>>>>,
+) -> impl IntoResponse {
+    use schema::users::dsl::{id, name, passwd, salt, users};
+    let queryed_result = users
+        .filter(name.eq(&login_info.username))
+        .select((name, passwd, salt, id))
+        .get_result::<(String, Vec<u8>, String, i32)>(&pool.get().unwrap());
+    match queryed_result {
+        Err(diesel::NotFound) => {
+            return (
+                StatusCode::NOT_FOUND,
+                HeaderMap::new(),
+                "username not found!".to_owned(),
+            );
+        }
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                HeaderMap::new(),
+                "database querry error occur".to_owned(),
+            );
+        }
+        Ok(queryed_result) => {
+            if check(
+                &login_info.password,
+                &queryed_result.2,
+                queryed_result.1.try_into().unwrap_or_else(|v: Vec<u8>| {
+                    panic!(
+                        "Expected a Vec of length {} but got length of {}",
+                        32,
+                        v.len()
+                    )
+                }),
+            ) {
+                let session_id = Uuid::new_v4();
+                let mut header = HeaderMap::new();
+                header.insert(
+                    header::CONTENT_TYPE,
+                    HeaderValue::from_str("text/html").unwrap(),
+                );
+                header.insert(
+                    header::SET_COOKIE,
+                    HeaderValue::from_str(
+                        format!("{}={}", SESSON_ID_COOKIE_NAME, session_id).as_str(),
+                    )
+                    .unwrap(),
+                );
+                sessions.write().unwrap().insert(session_id, (queryed_result.3, 0.0));
+                return (
+                    StatusCode::ACCEPTED,
+                    header,
+                    format!("hello, {}", queryed_result.0),
+                );
+            }
+            return (
+                StatusCode::FORBIDDEN,
+                HeaderMap::new(),
+                "username or password not correct".to_owned(),
+            );
+        }
+    };
 }
 
 async fn register_post(
@@ -175,41 +266,52 @@ fn register_user(username: &str, password: &str, pool: Pool<ConnectionManager<Sq
         .unwrap();
 }
 
-
-
-// enum UserIdFromSession{
-//     FoundUserId(i32),
-//     NotFound,
-// }
-
-struct SessionId {
-    session_id: u64,
+#[derive(Debug)]
+enum UserIdFromSession {
+    FoundUserId(i32),
+    NotFound,
 }
 
+type SessionId = Uuid;
+
 #[async_trait]
-impl<B> FromRequest<B> for SessionId
+impl<B> FromRequest<B> for UserIdFromSession
 where
     B: Send,
 {
     type Rejection = (StatusCode, String);
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
+        let Extension(sessions) = Extension::<Arc<RwLock<HashMap<Uuid,(i32, f32)>>>>::from_request(req)
+            .await
+            .expect("sessions extension missing");
         let cookie = Option::<TypedHeader<Cookie>>::from_request(req)
             .await
             .unwrap();
         tracing::debug!("{}", format!("{:?}", &cookie));
-        let session_cookie = cookie.as_ref().and_then(|cookie| cookie.get("SessionId"));
+        let session_cookie = cookie
+            .as_ref()
+            .and_then(|cookie| cookie.get(SESSON_ID_COOKIE_NAME));
         match session_cookie {
             None => {
-                return Ok(SessionId { session_id: 0 });
+                return Ok(UserIdFromSession::NotFound);
             }
             Some(session_id_str) => {
-                let session_id: u64 = match session_id_str.parse() {
-                    Ok(id) => id,
-                    Err(e) => {
-                        return Err((StatusCode::NOT_FOUND, format!("session id parse error: {:?}", e)));
+                tracing::debug!("found session_id: {}", session_id_str);
+                tracing::debug!("sessions is {:?}", sessions);
+                let user_id: i32 = match Uuid::parse_str(session_id_str) {
+                    //TODO: parse to UUID
+                    Ok(session_id) => match sessions.read().unwrap().get(&session_id) {
+                        Some((uid, _)) => *uid,
+                        None => {
+                            return Ok(UserIdFromSession::NotFound);
+                        }
+                    }, // TODO: check id if is exists or is not expr
+                    Err(_) => {
+                        tracing::debug!("parse session_id error");
+                        return Ok(UserIdFromSession::NotFound);
                     }
                 };
-                return Ok(SessionId { session_id });
+                return Ok(UserIdFromSession::FoundUserId(user_id));
             }
         }
     }
