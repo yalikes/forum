@@ -1,10 +1,12 @@
 #[macro_use]
 extern crate diesel;
 
+use std::io;
 use std::net::SocketAddr;
 use std::{collections::HashMap, env};
 use std::sync::{RwLock, Arc};
 
+use axum::routing::{get_service};
 use axum::{
     async_trait,
     body::StreamBody,
@@ -26,6 +28,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use hyper::header;
 use tokio_util::io::ReaderStream;
+
+use tower_http::{services::ServeDir, trace::TraceLayer};
 
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl, SqliteConnection};
@@ -77,10 +81,12 @@ async fn main() {
         .route("/", get(index))
         .route("/login", get(login).post(login_post))
         .route("/register", get(register).post(register_post))
+        .fallback(get_service(ServeDir::new("./dist")).handle_error(handle_error))
         .layer(Extension((tera, pool)))
-        .layer(Extension(sessions_ptr));
+        .layer(Extension(sessions_ptr))
+        .layer(TraceLayer::new_for_http());
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     tracing::debug!("listening on {}", addr);
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
@@ -157,7 +163,7 @@ struct LoginInfo {
 async fn login_post(
     Form(login_info): Form<LoginInfo>,
     Extension((_, pool)): Extension<(Tera, Pool<ConnectionManager<SqliteConnection>>)>,
-    Extension(mut sessions): Extension<Arc<RwLock<HashMap<Uuid,(i32, f32)>>>>,
+    Extension(sessions): Extension<Arc<RwLock<HashMap<Uuid,(i32, f32)>>>>,
 ) -> impl IntoResponse {
     use schema::users::dsl::{id, name, passwd, salt, users};
     let queryed_result = users
@@ -315,4 +321,8 @@ where
             }
         }
     }
+}
+
+async fn handle_error(_err: io::Error) -> impl IntoResponse {
+    (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong...")
 }

@@ -13,7 +13,7 @@ tower = "0.4"
 
 tokio-util = { version = "0.7.3", features = ["io"]}
 tokio-stream = {version = "0.1.9"}
-
+tower-http = { version = "0.3.4", features = ["fs", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
