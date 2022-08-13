@@ -208,7 +208,7 @@ async fn login_post(
                 let mut header = HeaderMap::new();
                 header.insert(
                     header::CONTENT_TYPE,
-                    HeaderValue::from_str("text/html").unwrap(),
+                    HeaderValue::from_str("text/html; charset=utf-8").unwrap(),
                 );
                 header.insert(
                     header::SET_COOKIE,
