@@ -1,0 +1,18 @@
+h1{
+    text-align: center;
+}
+
+button {
+    font-size: large;
+}
+
+li {
+    font-size: large;
+}
+.login_or_register{
+    text-align: right;
+}
+
+.login_or_register_button{
+    padding: 0.5rem;
+}

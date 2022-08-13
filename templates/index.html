@@ -5,13 +5,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>欢迎!</title>
+    <link rel="stylesheet" href="/index_style.css">
 </head>
 
 <body>
-    <p>
-        <a href="/register"><button type="button">register</button></a>
-        <a href="/login"><button type="button">login</button></a>
+    <h1>欢迎！</h1>
+    {% if not logined %}
+
+    <p class="login_or_register">
+        <a href="/register"><button type="button" class="login_or_register_button">register</button></a>
+        <a href="/login"><button type="button" class="login_or_register_button">login</button></a>
     </p>
+
+    {% endif %}
     <ul>
         {% for name in names %}
         <li>

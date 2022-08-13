@@ -95,6 +95,7 @@ async fn main() {
 }
 
 async fn index(
+    may_user_id: UserIdFromSession,
     Extension((tera, pool)): Extension<(Tera, Pool<ConnectionManager<SqliteConnection>>)>,
 ) -> Html<String> {
     use schema::users::dsl::{name, users};
@@ -102,8 +103,14 @@ async fn index(
         .select(name)
         .load::<String>(&pool.get().unwrap())
         .unwrap();
+    let logined:bool;
+    match may_user_id{
+        UserIdFromSession::FoundUserId(_) => {logined = true}
+        UserIdFromSession::NotFound => {logined=false}
+    }
     let mut context = Context::new();
     context.insert("names", &my_user_names);
+    context.insert("logined", &logined);
     tera.render("index.html", &context).unwrap().into()
 }
 
