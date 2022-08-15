@@ -3,15 +3,15 @@ extern crate diesel;
 
 use std::io;
 use std::net::SocketAddr;
+use std::sync::{Arc, RwLock};
 use std::{collections::HashMap, env};
-use std::sync::{RwLock, Arc};
 
-use axum::routing::{get_service};
+use axum::routing::get_service;
 use axum::{
     async_trait,
     body::StreamBody,
     extract::Form,
-    extract::{Extension, FromRequest, RequestParts},
+    extract::{Extension, FromRequest, Path, RequestParts},
     headers::Cookie,
     http::{
         header::{HeaderMap, HeaderValue},
@@ -35,7 +35,7 @@ use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl, SqliteConnection};
 use tera::{Context, Tera};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use uuid::Uuid;
 
@@ -45,7 +45,7 @@ mod models;
 mod schema;
 mod utils;
 
-use models::InsertableUser;
+use models::{InsertableUser, Post};
 use utils::generate_salt_and_hash;
 
 use crate::utils::check;
@@ -56,7 +56,7 @@ async fn main() {
     dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must set");
     let sessions: HashMap<SessionId, (i32, f32)> = HashMap::new(); //session_id => (userId, expr time limit)
-    let sessions:Arc<RwLock<HashMap<Uuid,(i32, f32)>>> = Arc::new(RwLock::new(sessions));
+    let sessions: Arc<RwLock<HashMap<Uuid, (i32, f32)>>> = Arc::new(RwLock::new(sessions));
     let sessions_ptr = sessions.clone();
 
     tracing_subscriber::registry()
@@ -81,6 +81,7 @@ async fn main() {
         .route("/", get(index))
         .route("/login", get(login).post(login_post))
         .route("/register", get(register).post(register_post))
+        .route("/post/:post_id", get(get_post))
         .fallback(get_service(ServeDir::new("./dist")).handle_error(handle_error))
         .layer(Extension((tera, pool)))
         .layer(Extension(sessions_ptr))
@@ -98,19 +99,30 @@ async fn index(
     may_user_id: UserIdFromSession,
     Extension((tera, pool)): Extension<(Tera, Pool<ConnectionManager<SqliteConnection>>)>,
 ) -> Html<String> {
+    use schema::posts::dsl::posts;
     use schema::users::dsl::{name, users};
-    let my_user_names = users
-        .select(name)
-        .load::<String>(&pool.get().unwrap())
-        .unwrap();
-    let logined:bool;
-    match may_user_id{
-        UserIdFromSession::FoundUserId(_) => {logined = true}
-        UserIdFromSession::NotFound => {logined=false}
+    let mut posts_with_author_name: Vec<PostWithAuthor> = Vec::new();
+    let conn = &pool.get().unwrap();
+    if let Ok(some_post) = posts.limit(10).get_results::<Post>(conn) {
+        tracing::debug!("{:?}", &some_post);
+        for post in some_post {
+            let author_name = users
+                .select(name)
+                .find(post.id)
+                .get_result::<String>(conn)
+                .unwrap_or("unknown user".to_owned());
+            posts_with_author_name.push(PostWithAuthor { post, author_name })
+        }
+    }
+
+    let logined: bool;
+    match may_user_id {
+        UserIdFromSession::FoundUserId(_) => logined = true,
+        UserIdFromSession::NotFound => logined = false,
     }
     let mut context = Context::new();
-    context.insert("names", &my_user_names);
     context.insert("logined", &logined);
+    context.insert("posts", &posts_with_author_name);
     tera.render("index.html", &context).unwrap().into()
 }
 
@@ -155,6 +167,11 @@ async fn login(
 
     return Ok((StatusCode::OK, header, body));
 }
+
+async fn get_post(Path(post_id): Path<i64>) -> impl IntoResponse {
+    format!("post_id: {}", post_id)
+}
+
 #[derive(Deserialize)]
 struct RegisterStruct {
     username: String,
@@ -167,10 +184,16 @@ struct LoginInfo {
     password: String,
 }
 
+#[derive(Debug, Serialize)]
+struct PostWithAuthor {
+    pub post: Post,
+    pub author_name: String,
+}
+
 async fn login_post(
     Form(login_info): Form<LoginInfo>,
     Extension((_, pool)): Extension<(Tera, Pool<ConnectionManager<SqliteConnection>>)>,
-    Extension(sessions): Extension<Arc<RwLock<HashMap<Uuid,(i32, f32)>>>>,
+    Extension(sessions): Extension<Arc<RwLock<HashMap<Uuid, (i32, f32)>>>>,
 ) -> impl IntoResponse {
     use schema::users::dsl::{id, name, passwd, salt, users};
     let queryed_result = users
@@ -217,7 +240,10 @@ async fn login_post(
                     )
                     .unwrap(),
                 );
-                sessions.write().unwrap().insert(session_id, (queryed_result.3, 0.0));
+                sessions
+                    .write()
+                    .unwrap()
+                    .insert(session_id, (queryed_result.3, 0.0));
                 return (
                     StatusCode::ACCEPTED,
                     header,
@@ -294,9 +320,10 @@ where
 {
     type Rejection = (StatusCode, String);
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        let Extension(sessions) = Extension::<Arc<RwLock<HashMap<Uuid,(i32, f32)>>>>::from_request(req)
-            .await
-            .expect("sessions extension missing");
+        let Extension(sessions) =
+            Extension::<Arc<RwLock<HashMap<Uuid, (i32, f32)>>>>::from_request(req)
+                .await
+                .expect("sessions extension missing");
         let cookie = Option::<TypedHeader<Cookie>>::from_request(req)
             .await
             .unwrap();

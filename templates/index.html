@@ -19,9 +19,12 @@
 
     {% endif %}
     <ul>
-        {% for name in names %}
+        {% for post in posts %}
         <li>
-            {{ name }}
+            <a href="/post/{{ post.post.id }}">
+                <h3>{{ post.post.title }}</h3>
+            </a>
+            <p>{{ post.author_name }}</p>
         </li>
         {% endfor %}
     </ul>
