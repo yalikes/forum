@@ -319,6 +319,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "forum"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "diesel",
+ "dotenv",
+ "hyper",
+ "openssl",
+ "rand",
+ "serde",
+ "tera",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "futures-channel"
 version = "0.3.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1126,28 +1148,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e51e73328dc4ac0c7ccbda3a494dfa03df1de2f46018127f60c693f2648455b0"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "simple_web_app"
-version = "0.1.0"
-dependencies = [
- "axum",
- "diesel",
- "dotenv",
- "hyper",
- "openssl",
- "rand",
- "serde",
- "tera",
- "tokio",
- "tokio-stream",
- "tokio-util",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "uuid",
 ]
 
 [[package]]

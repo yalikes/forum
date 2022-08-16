@@ -1,5 +1,5 @@
 [package]
-name = "simple_web_app"
+name = "forum"
 version = "0.1.0"
 edition = "2021"
 
