@@ -1,6 +1,16 @@
 table! {
+    floor (id) {
+        id -> Integer,
+        post_id -> Integer,
+        floor_number -> Integer,
+        author -> Integer,
+        content -> Text,
+    }
+}
+
+table! {
     posts (id) {
-        id ->Integer,
+        id -> Integer,
         author -> Integer,
         title -> Text,
     }
@@ -8,14 +18,11 @@ table! {
 
 table! {
     users (id) {
-        id ->Integer,
+        id -> Integer,
         name -> Text,
         passwd -> Binary,
         salt -> Text,
     }
 }
 
-allow_tables_to_appear_in_same_query!(
-    posts,
-    users,
-);
+allow_tables_to_appear_in_same_query!(floor, posts, users,);
