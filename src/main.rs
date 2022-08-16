@@ -1,3 +1,4 @@
+#![warn(clippy::pedantic)]
 #[macro_use]
 extern crate diesel;
 
@@ -51,12 +52,14 @@ use utils::generate_salt_and_hash;
 use crate::utils::check;
 
 const SESSON_ID_COOKIE_NAME: &str = "session_id";
+
+type SessionMap = Arc<RwLock<HashMap<Uuid, (i32, f32)>>>;
 #[tokio::main]
 async fn main() {
     dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must set");
     let sessions: HashMap<SessionId, (i32, f32)> = HashMap::new(); //session_id => (userId, expr time limit)
-    let sessions: Arc<RwLock<HashMap<Uuid, (i32, f32)>>> = Arc::new(RwLock::new(sessions));
+    let sessions: SessionMap = Arc::new(RwLock::new(sessions));
     let sessions_ptr = sessions.clone();
 
     tracing_subscriber::registry()
@@ -110,16 +113,15 @@ async fn index(
                 .select(name)
                 .find(post.id)
                 .get_result::<String>(conn)
-                .unwrap_or("unknown user".to_owned());
-            posts_with_author_name.push(PostWithAuthor { post, author_name })
+                .unwrap_or_else(|_| "unknown user".to_owned());
+            posts_with_author_name.push(PostWithAuthor { post, author_name });
         }
     }
 
-    let logined: bool;
-    match may_user_id {
-        UserIdFromSession::FoundUserId(_) => logined = true,
-        UserIdFromSession::NotFound => logined = false,
-    }
+    let logined: bool = match may_user_id {
+        UserIdFromSession::FoundUserId(_) => true,
+        UserIdFromSession::NotFound => false,
+    };
     let mut context = Context::new();
     context.insert("logined", &logined);
     context.insert("posts", &posts_with_author_name);
@@ -165,7 +167,7 @@ async fn login(
     let mut body = String::new();
     file.read_to_string(&mut body).await.unwrap();
 
-    return Ok((StatusCode::OK, header, body));
+    Ok((StatusCode::OK, header, body))
 }
 
 async fn get_post(Path(post_id): Path<i64>) -> impl IntoResponse {
@@ -193,7 +195,7 @@ struct PostWithAuthor {
 async fn login_post(
     Form(login_info): Form<LoginInfo>,
     Extension((_, pool)): Extension<(Tera, Pool<ConnectionManager<SqliteConnection>>)>,
-    Extension(sessions): Extension<Arc<RwLock<HashMap<Uuid, (i32, f32)>>>>,
+    Extension(sessions): Extension<SessionMap>,
 ) -> impl IntoResponse {
     use schema::users::dsl::{id, name, passwd, salt, users};
     let queryed_result = users
@@ -201,20 +203,16 @@ async fn login_post(
         .select((name, passwd, salt, id))
         .get_result::<(String, Vec<u8>, String, i32)>(&pool.get().unwrap());
     match queryed_result {
-        Err(diesel::NotFound) => {
-            return (
-                StatusCode::NOT_FOUND,
-                HeaderMap::new(),
-                "username not found!".to_owned(),
-            );
-        }
-        Err(_) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                HeaderMap::new(),
-                "database querry error occur".to_owned(),
-            );
-        }
+        Err(diesel::NotFound) => (
+            StatusCode::NOT_FOUND,
+            HeaderMap::new(),
+            "username not found!".to_owned(),
+        ),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            HeaderMap::new(),
+            "database querry error occur".to_owned(),
+        ),
         Ok(queryed_result) => {
             if check(
                 &login_info.password,
@@ -250,18 +248,18 @@ async fn login_post(
                     format!("hello, {}", queryed_result.0),
                 );
             }
-            return (
+            (
                 StatusCode::FORBIDDEN,
                 HeaderMap::new(),
                 "username or password not correct".to_owned(),
-            );
+            )
         }
-    };
+    }
 }
 
 async fn register_post(
     Form(register_info): Form<RegisterStruct>,
-    Extension((_, pool)): Extension<(Tera, Pool<ConnectionManager<SqliteConnection>>)>,
+    Extension((_, pool)): Extension<(Tera, &Pool<ConnectionManager<SqliteConnection>>)>,
 ) -> impl IntoResponse {
     use schema::users::dsl::{name, users};
 
@@ -277,21 +275,17 @@ async fn register_post(
         Err(diesel::NotFound) => {
             // because this name previously didn't exists, it can be used to register new user.
             register_user(&register_info.username, &register_info.password, pool);
-            return (StatusCode::OK, "register success!");
+            (StatusCode::OK, "register success!")
         }
-        Err(_) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "database querry error occur",
-            );
-        }
-        Ok(_) => {
-            return (StatusCode::OK, "username already exists");
-        }
-    };
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "database querry error occur",
+        ),
+        Ok(_) => (StatusCode::OK, "username already exists"),
+    }
 }
 
-fn register_user(username: &str, password: &str, pool: Pool<ConnectionManager<SqliteConnection>>) {
+fn register_user(username: &str, password: &str, pool: &Pool<ConnectionManager<SqliteConnection>>) {
     use schema::users::dsl::users;
     let (password_hash, salt) = generate_salt_and_hash(password);
     let new_user = InsertableUser {
@@ -338,18 +332,17 @@ where
             Some(session_id_str) => {
                 tracing::debug!("found session_id: {}", session_id_str);
                 tracing::debug!("sessions is {:?}", sessions);
-                let user_id: i32 = match Uuid::parse_str(session_id_str) {
-                    //TODO: parse to UUID
-                    Ok(session_id) => match sessions.read().unwrap().get(&session_id) {
+
+                let user_id: i32 = if let Ok(session_id) = Uuid::parse_str(session_id_str) {
+                    match sessions.read().unwrap().get(&session_id) {
                         Some((uid, _)) => *uid,
                         None => {
                             return Ok(UserIdFromSession::NotFound);
-                        }
-                    }, // TODO: check id if is exists or is not expr
-                    Err(_) => {
-                        tracing::debug!("parse session_id error");
-                        return Ok(UserIdFromSession::NotFound);
+                        }// TODO: check expr time
                     }
+                } else {
+                    tracing::debug!("parse session_id error");
+                    return Ok(UserIdFromSession::NotFound);
                 };
                 return Ok(UserIdFromSession::FoundUserId(user_id));
             }

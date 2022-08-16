@@ -21,8 +21,8 @@ pub fn generate_salt_and_hash(password: &str) -> ([u8; 32], [char; 32]) {
 
 fn utochar(n: u8) -> char {
     match n {
-        0..=9 => (n + ('0' as u8)) as char,
-        _ => ((n - 10) + ('A' as u8)) as char,
+        0..=9 => (n + (b'0')) as char,
+        _ => ((n - 10) + (b'A')) as char,
     }
 }
 
