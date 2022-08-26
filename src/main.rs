@@ -54,6 +54,7 @@ use crate::utils::check;
 const SESSON_ID_COOKIE_NAME: &str = "session_id";
 
 type SessionMap = Arc<RwLock<HashMap<Uuid, (i32, f32)>>>;
+type SqliteConnectionPool = Pool<ConnectionManager<SqliteConnection>>;
 #[tokio::main]
 async fn main() {
     dotenv().ok();
@@ -100,7 +101,7 @@ async fn main() {
 
 async fn index(
     may_user_id: UserIdFromSession,
-    Extension((tera, pool)): Extension<(Tera, Pool<ConnectionManager<SqliteConnection>>)>,
+    Extension((tera, pool)): Extension<(Tera, SqliteConnectionPool)>,
 ) -> Html<String> {
     use schema::posts::dsl::posts;
     use schema::users::dsl::{name, users};
@@ -141,7 +142,7 @@ async fn register() -> impl IntoResponse {
 
 async fn login(
     may_user_id: UserIdFromSession,
-    Extension((_, pool)): Extension<(Tera, Pool<ConnectionManager<SqliteConnection>>)>,
+    Extension((_, pool)): Extension<(Tera, SqliteConnectionPool)>,
 ) -> impl IntoResponse {
     use schema::users::dsl::{name, users};
     tracing::debug!("{:?}", may_user_id);
@@ -194,7 +195,7 @@ struct PostWithAuthor {
 
 async fn login_post(
     Form(login_info): Form<LoginInfo>,
-    Extension((_, pool)): Extension<(Tera, Pool<ConnectionManager<SqliteConnection>>)>,
+    Extension((_, pool)): Extension<(Tera, SqliteConnectionPool)>,
     Extension(sessions): Extension<SessionMap>,
 ) -> impl IntoResponse {
     use schema::users::dsl::{id, name, passwd, salt, users};
@@ -259,7 +260,7 @@ async fn login_post(
 
 async fn register_post(
     Form(register_info): Form<RegisterStruct>,
-    Extension((_, pool)): Extension<(Tera, &Pool<ConnectionManager<SqliteConnection>>)>,
+    Extension((_, pool)): Extension<(Tera, SqliteConnectionPool)>,
 ) -> impl IntoResponse {
     use schema::users::dsl::{name, users};
 
@@ -274,7 +275,7 @@ async fn register_post(
     match queryed_names {
         Err(diesel::NotFound) => {
             // because this name previously didn't exists, it can be used to register new user.
-            register_user(&register_info.username, &register_info.password, pool);
+            register_user(&register_info.username, &register_info.password, &pool);
             (StatusCode::OK, "register success!")
         }
         Err(_) => (
@@ -285,7 +286,7 @@ async fn register_post(
     }
 }
 
-fn register_user(username: &str, password: &str, pool: &Pool<ConnectionManager<SqliteConnection>>) {
+fn register_user(username: &str, password: &str, pool: &SqliteConnectionPool) {
     use schema::users::dsl::users;
     let (password_hash, salt) = generate_salt_and_hash(password);
     let new_user = InsertableUser {
