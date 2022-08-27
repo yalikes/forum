@@ -10,8 +10,11 @@
 
 <body>
     <h2>{{post.author_name}}</h2>
-    <h1>{{post.title}}</h1>
-    
+    <h1>{{post.post.title}}</h1>
+    {% for floor in floors %}
+    <p>{{ floor.content }}</p>
+    <p>{{ floor.floor_number }}</p>
+    {% endfor %}
 </body>
 
 </html>

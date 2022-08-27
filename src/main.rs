@@ -46,7 +46,7 @@ mod models;
 mod schema;
 mod utils;
 
-use models::{InsertableUser, Post};
+use models::{InsertableUser, Post, Floor};
 use utils::generate_salt_and_hash;
 
 use crate::utils::check;
@@ -171,8 +171,40 @@ async fn login(
     Ok((StatusCode::OK, header, body))
 }
 
-async fn get_post(Path(post_id): Path<i64>) -> impl IntoResponse {
-    format!("post_id: {}", post_id)
+async fn get_post(
+    Path(post_id): Path<i32>,
+    may_user_id: UserIdFromSession,
+    Extension((tera, pool)): Extension<(Tera, Pool<ConnectionManager<SqliteConnection>>)>,
+) -> Html<String> {
+    use schema::posts::dsl::posts;
+    use schema::users::dsl::{users, name};
+    use schema::floor::dsl::{floor, post_id as post_id_dsl};
+
+    let post_inner: Post = match posts.find(post_id).first::<Post>(&pool.get().unwrap()) {
+        Ok(p) => p,
+        Err(_) => {
+            return "post not found".to_owned().into();
+        }
+    };
+
+    let post: PostWithAuthor = match users.find(post_inner.author).select(name).first::<String>(&pool.get().unwrap()){
+        Ok(author_name) => PostWithAuthor{post: post_inner, author_name: author_name},
+        Err(_) => PostWithAuthor { post: post_inner, author_name: "unknown".to_owned() }
+    };
+
+    let floors = match floor.filter(post_id_dsl.eq(post.post.id))
+    .get_results::<Floor>(&pool.get().unwrap()){
+        Ok(floors) => floors,
+        Err(_) => {
+            return "can't find floors".to_owned().into();
+        }
+    };
+
+
+    let mut context = Context::new();
+    context.insert("post", &post);
+    context.insert("floors", &floors);
+    tera.render("post.html", &context).unwrap().into()
 }
 
 #[derive(Deserialize)]
@@ -339,7 +371,7 @@ where
                         Some((uid, _)) => *uid,
                         None => {
                             return Ok(UserIdFromSession::NotFound);
-                        }// TODO: check expr time
+                        } // TODO: check expr time
                     }
                 } else {
                     tracing::debug!("parse session_id error");

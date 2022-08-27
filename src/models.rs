@@ -23,3 +23,12 @@ pub struct Post {
     pub author: i32,
     pub title: String,
 }
+
+#[derive(Queryable, Debug, Serialize)]
+pub struct Floor {
+    pub id: i32,
+    pub post_id: i32,
+    pub floor_number: i32,
+    pub author: i32,
+    pub content: String,
+}
