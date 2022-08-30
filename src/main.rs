@@ -40,7 +40,7 @@ use serde::{Deserialize, Serialize};
 
 use uuid::Uuid;
 
-use dotenv::dotenv;
+use dotenvy::dotenv;
 
 mod models;
 mod schema;
@@ -106,7 +106,7 @@ async fn index(
     use schema::posts::dsl::posts;
     use schema::users::dsl::{name, users};
     let mut posts_with_author_name: Vec<PostWithAuthor> = Vec::new();
-    let conn = &pool.get().unwrap();
+    let conn = &mut pool.get().unwrap();
     if let Ok(some_post) = posts.limit(10).get_results::<Post>(conn) {
         tracing::debug!("{:?}", &some_post);
         for post in some_post {
@@ -150,7 +150,7 @@ async fn login(
         if let Ok(my_user_name) = users
             .find(user_id)
             .select(name)
-            .get_result::<String>(&pool.get().unwrap())
+            .get_result::<String>(&mut pool.get().unwrap())
         {
             return Ok((StatusCode::OK, HeaderMap::new(), my_user_name));
         }
@@ -180,20 +180,20 @@ async fn get_post(
     use schema::users::dsl::{users, name};
     use schema::floor::dsl::{floor, post_id as post_id_dsl};
 
-    let post_inner: Post = match posts.find(post_id).first::<Post>(&pool.get().unwrap()) {
+    let post_inner: Post = match posts.find(post_id).first::<Post>(&mut pool.get().unwrap()) {
         Ok(p) => p,
         Err(_) => {
             return "post not found".to_owned().into();
         }
     };
 
-    let post: PostWithAuthor = match users.find(post_inner.author).select(name).first::<String>(&pool.get().unwrap()){
+    let post: PostWithAuthor = match users.find(post_inner.author).select(name).first::<String>(&mut pool.get().unwrap()){
         Ok(author_name) => PostWithAuthor{post: post_inner, author_name: author_name},
         Err(_) => PostWithAuthor { post: post_inner, author_name: "unknown".to_owned() }
     };
 
     let floors = match floor.filter(post_id_dsl.eq(post.post.id))
-    .get_results::<Floor>(&pool.get().unwrap()){
+    .get_results::<Floor>(&mut pool.get().unwrap()){
         Ok(floors) => floors,
         Err(_) => {
             return "can't find floors".to_owned().into();
@@ -234,7 +234,7 @@ async fn login_post(
     let queryed_result = users
         .filter(name.eq(&login_info.username))
         .select((name, passwd, salt, id))
-        .get_result::<(String, Vec<u8>, String, i32)>(&pool.get().unwrap());
+        .get_result::<(String, Vec<u8>, String, i32)>(&mut pool.get().unwrap());
     match queryed_result {
         Err(diesel::NotFound) => (
             StatusCode::NOT_FOUND,
@@ -303,7 +303,7 @@ async fn register_post(
     let queryed_names = users
         .filter(name.eq(&register_info.username))
         .select(name)
-        .get_result::<String>(&pool.get().unwrap());
+        .get_result::<String>(&mut pool.get().unwrap());
     match queryed_names {
         Err(diesel::NotFound) => {
             // because this name previously didn't exists, it can be used to register new user.
@@ -328,7 +328,7 @@ fn register_user(username: &str, password: &str, pool: &SqliteConnectionPool) {
     };
     diesel::insert_into(users)
         .values(&new_user)
-        .execute(&pool.get().unwrap())
+        .execute(&mut pool.get().unwrap())
         .unwrap();
 }
 
