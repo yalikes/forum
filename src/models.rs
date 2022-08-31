@@ -10,7 +10,7 @@ pub struct User {
 }
 
 #[derive(Insertable, Debug)]
-#[table_name = "users"]
+#[diesel(table_name = users)]
 pub struct InsertableUser {
     pub name: String,
     pub passwd: Vec<u8>,
