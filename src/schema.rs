@@ -1,4 +1,6 @@
-table! {
+// @generated automatically by Diesel CLI.
+
+diesel::table! {
     floor (id) {
         id -> Integer,
         post_id -> Integer,
@@ -8,7 +10,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     posts (id) {
         id -> Integer,
         author -> Integer,
@@ -16,7 +18,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     users (id) {
         id -> Integer,
         name -> Text,
@@ -25,4 +27,8 @@ table! {
     }
 }
 
-allow_tables_to_appear_in_same_query!(floor, posts, users,);
+diesel::allow_tables_to_appear_in_same_query!(
+    floor,
+    posts,
+    users,
+);

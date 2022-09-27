@@ -1,0 +1,7 @@
+-- Your SQL goes here
+DROP TABLE IF EXISTS posts ;
+CREATE TABLE posts(
+	id INTEGER PRIMARY KEY NOT NULL,
+	author INTEGER NOT NULL,
+	title TEXT NOT NULL
+);
