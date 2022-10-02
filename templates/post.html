@@ -15,6 +15,9 @@
     <p>{{ floor.content }}</p>
     <p class="floor_number">第{{ floor.floor_number }}楼</p>
     {% endfor %}
+    {% if logined %}
+    <a><button>回复</button></a>
+    {% endif %}
 </body>
 
 </html>

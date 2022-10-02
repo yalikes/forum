@@ -173,7 +173,7 @@ async fn login(
 
 async fn get_post_with_page(
     Path((post_id, page)): Path<(i32, i32)>,
-    _: UserIdFromSession,
+    may_user_id: UserIdFromSession,
     Extension((tera, pool)): Extension<(Tera, Pool<ConnectionManager<SqliteConnection>>)>,
 ) -> Html<String> {
     use schema::floor::dsl::{floor, floor_number, post_id as post_id_dsl};
@@ -218,12 +218,13 @@ async fn get_post_with_page(
     let mut context = Context::new();
     context.insert("post", &post);
     context.insert("floors", &floors);
+    context.insert("logined", &(if let UserIdFromSession::FoundUserId(_) = may_user_id{true} else {false}));
     tera.render("post.html", &context).unwrap().into()
 }
 
 async fn get_post(
     Path(post_id): Path<i32>,
-    _: UserIdFromSession,
+    may_user_id: UserIdFromSession,
     Extension((tera, pool)): Extension<(Tera, Pool<ConnectionManager<SqliteConnection>>)>,
 ) -> Html<String> {
     use schema::floor::dsl::{floor, post_id as post_id_dsl};
@@ -266,6 +267,7 @@ async fn get_post(
     let mut context = Context::new();
     context.insert("post", &post);
     context.insert("floors", &floors);
+    context.insert("logined", &(if let UserIdFromSession::FoundUserId(_) = may_user_id{true} else {false}));
     tera.render("post.html", &context).unwrap().into()
 }
 
