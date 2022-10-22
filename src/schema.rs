@@ -15,6 +15,7 @@ diesel::table! {
         id -> Integer,
         author -> Integer,
         title -> Text,
+        extra -> Nullable<Integer>,
     }
 }
 

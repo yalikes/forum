@@ -1,4 +1,4 @@
-use crate::schema::users;
+use crate::schema::{users, posts, floor};
 use serde::Serialize;
 
 #[derive(Queryable, Debug)]
@@ -24,9 +24,26 @@ pub struct Post {
     pub title: String,
 }
 
+#[derive(Insertable, Debug, Serialize)]
+#[diesel(table_name = posts)]
+pub struct InsertablePost {
+    pub author: i32,
+    pub title: String,
+    pub extra: i32
+}
+
 #[derive(Queryable, Debug, Serialize)]
 pub struct Floor {
     pub id: i32,
+    pub post_id: i32,
+    pub floor_number: i32,
+    pub author: i32,
+    pub content: String,
+}
+
+#[derive(Insertable, Debug, Serialize)]
+#[diesel(table_name = floor)]
+pub struct InsertableFloor {
     pub post_id: i32,
     pub floor_number: i32,
     pub author: i32,

@@ -1,12 +1,12 @@
 #[macro_use]
 extern crate diesel;
 
+use rand;
 use std::io;
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use std::{collections::HashMap, env};
 
-use axum::routing::get_service;
 use axum::{
     async_trait,
     body::StreamBody,
@@ -19,7 +19,7 @@ use axum::{
     },
     response::Html,
     response::IntoResponse,
-    routing::get,
+    routing::{get, get_service},
     Router, TypedHeader,
 };
 
@@ -45,9 +45,10 @@ mod models;
 mod schema;
 mod utils;
 
-use models::{Floor, InsertableUser, Post};
+use models::{Floor, InsertablePost, InsertableUser, Post};
 use utils::generate_salt_and_hash;
 
+use crate::models::InsertableFloor;
 use crate::utils::check;
 
 const SESSON_ID_COOKIE_NAME: &str = "session_id";
@@ -86,6 +87,7 @@ async fn main() {
         .route("/register", get(register).post(register_post))
         .route("/post/:post_id", get(get_post))
         .route("/post/:post_id/:page_id", get(get_post_with_page))
+        .route("/newpost", get(newpost).post(newpost_post))
         .fallback(get_service(ServeDir::new("./dist")).handle_error(handle_error))
         .layer(Extension((tera, pool)))
         .layer(Extension(sessions_ptr))
@@ -103,16 +105,20 @@ async fn index(
     may_user_id: UserIdFromSession,
     Extension((tera, pool)): Extension<(Tera, SqliteConnectionPool)>,
 ) -> Html<String> {
-    use schema::posts::dsl::posts;
+    use schema::posts::dsl::{author as author_id, id as dsl_id, posts, title};
     use schema::users::dsl::{name, users};
     let mut posts_with_author_name: Vec<PostWithAuthor> = Vec::new();
     let conn = &mut pool.get().unwrap();
-    if let Ok(some_post) = posts.limit(10).get_results::<Post>(conn) {
+    if let Ok(some_post) = posts
+        .select((dsl_id, author_id, title))
+        .limit(10)
+        .get_results::<Post>(conn)
+    {
         tracing::debug!("{:?}", &some_post);
         for post in some_post {
             let author_name = users
                 .select(name)
-                .find(post.id)
+                .find(post.author)
                 .get_result::<String>(conn)
                 .unwrap_or_else(|_| "unknown user".to_owned());
             posts_with_author_name.push(PostWithAuthor { post, author_name });
@@ -177,10 +183,14 @@ async fn get_post_with_page(
     Extension((tera, pool)): Extension<(Tera, Pool<ConnectionManager<SqliteConnection>>)>,
 ) -> Html<String> {
     use schema::floor::dsl::{floor, floor_number, post_id as post_id_dsl};
-    use schema::posts::dsl::posts;
+    use schema::posts::dsl::{author as author_id, id as dsl_id, posts, title};
     use schema::users::dsl::{name, users};
 
-    let post_inner: Post = match posts.find(post_id).first::<Post>(&mut pool.get().unwrap()) {
+    let post_inner: Post = match posts
+        .find(post_id)
+        .select((dsl_id, author_id, title))
+        .first::<Post>(&mut pool.get().unwrap())
+    {
         Ok(p) => p,
         Err(_) => {
             return "post not found".to_owned().into();
@@ -218,7 +228,14 @@ async fn get_post_with_page(
     let mut context = Context::new();
     context.insert("post", &post);
     context.insert("floors", &floors);
-    context.insert("logined", &(if let UserIdFromSession::FoundUserId(_) = may_user_id{true} else {false}));
+    context.insert(
+        "logined",
+        &(if let UserIdFromSession::FoundUserId(_) = may_user_id {
+            true
+        } else {
+            false
+        }),
+    );
     tera.render("post.html", &context).unwrap().into()
 }
 
@@ -228,10 +245,14 @@ async fn get_post(
     Extension((tera, pool)): Extension<(Tera, Pool<ConnectionManager<SqliteConnection>>)>,
 ) -> Html<String> {
     use schema::floor::dsl::{floor, post_id as post_id_dsl};
-    use schema::posts::dsl::posts;
+    use schema::posts::dsl::{author as author_id, id as dsl_id, posts, title};
     use schema::users::dsl::{name, users};
 
-    let post_inner: Post = match posts.find(post_id).first::<Post>(&mut pool.get().unwrap()) {
+    let post_inner: Post = match posts
+        .find(post_id)
+        .select((dsl_id, author_id, title))
+        .first::<Post>(&mut pool.get().unwrap())
+    {
         Ok(p) => p,
         Err(_) => {
             return "post not found".to_owned().into();
@@ -267,7 +288,14 @@ async fn get_post(
     let mut context = Context::new();
     context.insert("post", &post);
     context.insert("floors", &floors);
-    context.insert("logined", &(if let UserIdFromSession::FoundUserId(_) = may_user_id{true} else {false}));
+    context.insert(
+        "logined",
+        &(if let UserIdFromSession::FoundUserId(_) = may_user_id {
+            true
+        } else {
+            false
+        }),
+    );
     tera.render("post.html", &context).unwrap().into()
 }
 
@@ -394,6 +422,69 @@ fn register_user(username: &str, password: &str, pool: &SqliteConnectionPool) {
         .values(&new_user)
         .execute(&mut pool.get().unwrap())
         .unwrap();
+}
+
+async fn newpost(may_user_id: UserIdFromSession) -> Html<String> {
+    if let UserIdFromSession::FoundUserId(_) = may_user_id {
+        let mut file = match tokio::fs::File::open("dist/newpost.html").await {
+            Ok(file) => file,
+            Err(_) => return "".to_owned().into(),
+        };
+        let mut body = String::new();
+        file.read_to_string(&mut body).await.unwrap();
+        return body.into();
+    } else {
+        return "please login".to_owned().into();
+    }
+}
+
+async fn newpost_post(
+    may_user_id: UserIdFromSession,
+    Form(submited_post): Form<NewPost>,
+    Extension((_, pool)): Extension<(Tera, SqliteConnectionPool)>,
+) -> Html<String> {
+    use schema::floor::dsl::floor;
+    use schema::posts::dsl::{extra, id as dsl_post_id, posts};
+    let user_id = match may_user_id {
+        UserIdFromSession::FoundUserId(id) => id,
+        UserIdFromSession::NotFound => return "please login".to_owned().into(),
+    };
+
+    //diesel currently not support returning for sqlite, i have to use a wired rourting to keep thing work
+    // 1. insert a row with unique extra property
+    // 2. find row with this property
+    // 3. get id and remove this property
+    let extra_id: i32 = rand::random();
+    diesel::insert_into(posts)
+        .values(InsertablePost {
+            author: user_id,
+            title: submited_post.title,
+            extra: extra_id,
+        })
+        .execute(&mut pool.get().unwrap())
+        .unwrap();
+    let post_id = posts
+        .filter(extra.eq(extra_id))
+        .select(dsl_post_id)
+        .get_result::<i32>(&mut pool.get().unwrap()).unwrap();
+    diesel::update(posts.find(post_id))
+        .set(extra.eq(0)).execute(&mut pool.get().unwrap()).unwrap();
+    diesel::insert_into(floor)
+        .values(InsertableFloor{
+            post_id,
+            floor_number:1,
+            author:user_id,
+            content: submited_post.content
+        })
+        .execute(&mut pool.get().unwrap())
+        .unwrap();
+    "create post sucess!".to_owned().into()
+}
+
+#[derive(Deserialize)]
+struct NewPost {
+    title: String,
+    content: String,
 }
 
 #[derive(Debug)]
