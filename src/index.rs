@@ -1,16 +1,15 @@
 use axum::{
-    extract::Extension,
+    extract::State,
     response::Html
 };
 
 use diesel::{QueryDsl, RunQueryDsl};
-use tera::{Context, Tera};
 use crate::helper::*;
 use crate::schema;
 use crate::models::Post;
 pub async fn index(
     may_user_id: UserIdFromSession,
-    Extension((tera, pool)): Extension<(Tera, SqliteConnectionPool)>,
+    State(pool): State<SqliteConnectionPool>,
 ) -> Html<String> {
     use schema::posts::dsl::{author as author_id, id as dsl_id, posts, title};
     use schema::users::dsl::{name, users};
@@ -36,8 +35,6 @@ pub async fn index(
         UserIdFromSession::FoundUserId(_) => true,
         UserIdFromSession::NotFound => false,
     };
-    let mut context = Context::new();
-    context.insert("logined", &logined);
-    context.insert("posts", &posts_with_author_name);
-    tera.render("index.html", &context).unwrap().into()
+    logined.to_string().into()
+
 }

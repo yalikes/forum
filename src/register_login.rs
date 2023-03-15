@@ -16,7 +16,6 @@ use tokio_util::io::ReaderStream;
 
 use diesel::{QueryDsl, RunQueryDsl};
 use diesel::expression_methods::ExpressionMethods;
-use tera::Tera;
 use uuid::Uuid;
 
 use crate::constants::SESSON_ID_COOKIE_NAME;
@@ -38,7 +37,7 @@ pub async fn register() -> impl IntoResponse {
 
 pub async fn login(
     may_user_id: UserIdFromSession,
-    Extension((_, pool)): Extension<(Tera, SqliteConnectionPool)>,
+    State(pool): State<SqliteConnectionPool>
 ) -> impl IntoResponse {
     use schema::users::dsl::{name, users};
     tracing::debug!("{:?}", may_user_id);
@@ -68,7 +67,7 @@ pub async fn login(
 }
 
 pub async fn login_post(
-    Extension((_, pool)): Extension<(Tera, SqliteConnectionPool)>,
+    State(pool): State<SqliteConnectionPool>,
     State(sessions): State<SessionMap>,
     Form(login_info): Form<LoginInfo>,
 ) -> impl IntoResponse {
@@ -134,7 +133,7 @@ pub async fn login_post(
 }
 
 pub async fn register_post(
-    Extension((_, pool)): Extension<(Tera, SqliteConnectionPool)>,
+    State(pool): State<SqliteConnectionPool>,
     Form(register_info): Form<RegisterStruct>,
 ) -> impl IntoResponse {
     use schema::users::dsl::{name, users};

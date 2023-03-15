@@ -1,3 +1,4 @@
+use axum::extract::State;
 use axum::{
     extract::Extension,
     extract::Path,
@@ -7,7 +8,6 @@ use axum::{
 
 use diesel::{QueryDsl, RunQueryDsl};
 use diesel::expression_methods::ExpressionMethods;
-use tera::{Tera, Context};
 
 use crate::helper::*;
 use crate::models::{Post, Floor};
@@ -16,7 +16,7 @@ use crate::schema;
 pub async fn get_post_with_page(
     Path((post_id, page)): Path<(i32, i32)>,
     may_user_id: UserIdFromSession,
-    Extension((tera, pool)): Extension<(Tera, SqliteConnectionPool)>,
+    State(pool): State<SqliteConnectionPool>,
 ) -> Html<String> {
     use schema::floor::dsl::{floor, floor_number, post_id as post_id_dsl};
     use schema::posts::dsl::{author as author_id, id as dsl_id, posts, title};
@@ -61,24 +61,13 @@ pub async fn get_post_with_page(
         }
     };
 
-    let mut context = Context::new();
-    context.insert("post", &post);
-    context.insert("floors", &floors);
-    context.insert(
-        "logined",
-        &(if let UserIdFromSession::FoundUserId(_) = may_user_id {
-            true
-        } else {
-            false
-        }),
-    );
-    tera.render("post.html", &context).unwrap().into()
+    "not implement".to_owned().into()
 }
 
 pub async fn get_post(
     Path(post_id): Path<i32>,
     may_user_id: UserIdFromSession,
-    Extension((tera, pool)): Extension<(Tera, SqliteConnectionPool)>,
+    State(pool): State<SqliteConnectionPool>,
 ) -> Html<String> {
     use schema::floor::dsl::{floor, post_id as post_id_dsl};
     use schema::posts::dsl::{author as author_id, id as dsl_id, posts, title};
@@ -121,16 +110,5 @@ pub async fn get_post(
         }
     };
 
-    let mut context = Context::new();
-    context.insert("post", &post);
-    context.insert("floors", &floors);
-    context.insert(
-        "logined",
-        &(if let UserIdFromSession::FoundUserId(_) = may_user_id {
-            true
-        } else {
-            false
-        }),
-    );
-    tera.render("post.html", &context).unwrap().into()
+    "not implement".to_owned().into()
 }

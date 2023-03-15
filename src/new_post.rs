@@ -1,3 +1,4 @@
+use axum::extract::State;
 use axum::{
     extract::Extension,
     extract::Form,
@@ -9,7 +10,6 @@ use rand;
 use tokio::io::AsyncReadExt;
 use diesel::{QueryDsl, RunQueryDsl};
 use diesel::expression_methods::ExpressionMethods;
-use tera::Tera;
 
 use crate::helper::*;
 use crate::models::{InsertableFloor, InsertablePost};
@@ -31,7 +31,7 @@ pub async fn newpost(may_user_id: UserIdFromSession) -> Html<String> {
 
 pub async fn newpost_post(
     may_user_id: UserIdFromSession,
-    Extension((_, pool)): Extension<(Tera, SqliteConnectionPool)>,
+    State(pool): State<SqliteConnectionPool>,
     Form(submited_post): Form<NewPost>,
 ) -> Html<String> {
     use schema::floor::dsl::floor;
