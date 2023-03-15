@@ -1,6 +1,5 @@
 use axum::{
     body::StreamBody,
-    extract::Extension,
     extract::{Form, State},
     http::{
         header::{HeaderMap, HeaderValue},

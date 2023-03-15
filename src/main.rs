@@ -3,20 +3,25 @@ extern crate diesel;
 
 use std::io;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 use std::{collections::HashMap, env};
 
+use axum::http::HeaderValue;
 use axum::{
-    extract::Extension,
     http::StatusCode,
     response::IntoResponse,
     routing::{get, get_service},
     Router,
 };
 
+use hyper::Method;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use tower_http::{services::ServeDir, trace::TraceLayer};
+use tower_http::{
+    cors::{Any, CorsLayer},
+    services::ServeDir,
+    trace::TraceLayer,
+};
 
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::SqliteConnection;
@@ -63,7 +68,7 @@ async fn main() {
 
     let state = AppState {
         sessions: sessions,
-        database_conn_pool: pool
+        database_conn_pool: pool,
     };
 
     let app = Router::new()
@@ -75,7 +80,12 @@ async fn main() {
         .route("/newpost", get(newpost).post(newpost_post))
         .fallback_service(get_service(ServeDir::new("./dist")).handle_error(handle_error))
         .with_state(state)
-        .layer(TraceLayer::new_for_http());
+        .layer(TraceLayer::new_for_http())
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods([Method::GET, Method::POST]),
+        );
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     tracing::debug!("listening on {}", addr);

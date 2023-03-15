@@ -1,6 +1,5 @@
 use axum::extract::State;
 use axum::{
-    extract::Extension,
     extract::Path,
     response::Html,
 };

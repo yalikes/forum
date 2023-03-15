@@ -13,12 +13,13 @@ tower = "0.4"
 
 tokio-util = { version = "0.7.3", features = ["io"]}
 tokio-stream = {version = "0.1.9"}
-tower-http = { version = "0.3.4", features = ["fs", "trace"] }
+tower-http = { version = "0.3.4", features = ["fs", "trace", "cors"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 diesel = {version = "2.0", features = ["sqlite", "r2d2"]}
 serde = { version = "1.0", features = ["derive"] }
+serde_json = {version = "1.0"}
 uuid = {version = "1.1.2", features = ["v4"]}
 dotenvy = "0.15"
 rand = "0.8"
