@@ -1,9 +1,12 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
+use axum::RequestPartsExt;
+use axum::extract::FromRef;
+use axum::http::request::Parts;
 use axum::{
     async_trait,
-    extract::{Extension, FromRequest, RequestParts},
+    extract::FromRequestParts,
     headers::Cookie,
     http::StatusCode,
     TypedHeader,
@@ -11,11 +14,11 @@ use axum::{
 
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::SqliteConnection;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use uuid::Uuid;
 use crate::constants::SESSON_ID_COOKIE_NAME;
 use crate::models::Post;
+use uuid::Uuid;
 
 #[derive(Deserialize)]
 pub struct NewPost {
@@ -40,6 +43,11 @@ pub struct RegisterStruct {
 }
 
 #[derive(Deserialize)]
+pub struct ReplyPost {
+    pub reply_content: String,
+}
+
+#[derive(Deserialize,Debug)]
 pub struct LoginInfo {
     pub username: String,
     pub password: String,
@@ -49,19 +57,20 @@ pub type SessionMap = Arc<RwLock<HashMap<Uuid, (i32, f32)>>>;
 pub type SqliteConnectionPool = Pool<ConnectionManager<SqliteConnection>>;
 
 #[async_trait]
-impl<B> FromRequest<B> for UserIdFromSession
+impl<S> FromRequestParts<S> for UserIdFromSession
 where
-    B: Send,
+    SessionMap: FromRef<S>,
+    S: Send + Sync,
 {
     type Rejection = (StatusCode, String);
-    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        let Extension(sessions) =
-            Extension::<Arc<RwLock<HashMap<Uuid, (i32, f32)>>>>::from_request(req)
-                .await
-                .expect("sessions extension missing");
-        let cookie = Option::<TypedHeader<Cookie>>::from_request(req)
-            .await
-            .unwrap();
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let sessions = SessionMap::from_ref(state);
+        let cookie: Option<TypedHeader<Cookie>> = parts.extract().await.unwrap();
+
+        let session_cookie = cookie
+        .as_ref()
+        .and_then(|cookie| cookie.get(SESSON_ID_COOKIE_NAME));
+
         tracing::debug!("{}", format!("{:?}", &cookie));
         let session_cookie = cookie
             .as_ref()
@@ -72,7 +81,6 @@ where
             }
             Some(session_id_str) => {
                 tracing::debug!("found session_id: {}", session_id_str);
-                tracing::debug!("sessions is {:?}", sessions);
 
                 let user_id: i32 = if let Ok(session_id) = Uuid::parse_str(session_id_str) {
                     match sessions.read().unwrap().get(&session_id) {

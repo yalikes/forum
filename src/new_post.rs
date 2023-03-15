@@ -31,8 +31,8 @@ pub async fn newpost(may_user_id: UserIdFromSession) -> Html<String> {
 
 pub async fn newpost_post(
     may_user_id: UserIdFromSession,
-    Form(submited_post): Form<NewPost>,
     Extension((_, pool)): Extension<(Tera, SqliteConnectionPool)>,
+    Form(submited_post): Form<NewPost>,
 ) -> Html<String> {
     use schema::floor::dsl::floor;
     use schema::posts::dsl::{extra, id as dsl_post_id, posts};

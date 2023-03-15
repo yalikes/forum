@@ -1,7 +1,7 @@
 use axum::{
     body::StreamBody,
     extract::Extension,
-    extract::Form,
+    extract::{Form, State},
     http::{
         header::{HeaderMap, HeaderValue},
         StatusCode,
@@ -68,9 +68,9 @@ pub async fn login(
 }
 
 pub async fn login_post(
-    Form(login_info): Form<LoginInfo>,
     Extension((_, pool)): Extension<(Tera, SqliteConnectionPool)>,
-    Extension(sessions): Extension<SessionMap>,
+    State(sessions): State<SessionMap>,
+    Form(login_info): Form<LoginInfo>,
 ) -> impl IntoResponse {
     use schema::users::dsl::{id, name, passwd, salt, users};
     let queryed_result = users
@@ -129,12 +129,13 @@ pub async fn login_post(
                 "username or password not correct".to_owned(),
             )
         }
+
     }
 }
 
 pub async fn register_post(
-    Form(register_info): Form<RegisterStruct>,
     Extension((_, pool)): Extension<(Tera, SqliteConnectionPool)>,
+    Form(register_info): Form<RegisterStruct>,
 ) -> impl IntoResponse {
     use schema::users::dsl::{name, users};
 

@@ -50,7 +50,7 @@ async fn main() {
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must set");
     let sessions: HashMap<SessionId, (i32, f32)> = HashMap::new(); //session_id => (userId, expr time limit)
     let sessions: SessionMap = Arc::new(RwLock::new(sessions));
-    let sessions_ptr = sessions.clone();
+    let sessions_state = sessions.clone();
 
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
@@ -77,9 +77,9 @@ async fn main() {
         .route("/post/:post_id", get(get_post))
         .route("/post/:post_id/:page_id", get(get_post_with_page))
         .route("/newpost", get(newpost).post(newpost_post))
-        .fallback(get_service(ServeDir::new("./dist")).handle_error(handle_error))
+        .fallback_service(get_service(ServeDir::new("./dist")).handle_error(handle_error))
         .layer(Extension((tera, pool)))
-        .layer(Extension(sessions_ptr))
+        .with_state(sessions_state)
         .layer(TraceLayer::new_for_http());
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
