@@ -36,7 +36,7 @@ pub async fn register() -> impl IntoResponse {
 
 pub async fn login(
     may_user_id: UserIdFromSession,
-    State(pool): State<SqliteConnectionPool>
+    State(pool): State<ConnectionPool>
 ) -> impl IntoResponse {
     use schema::users::dsl::{name, users};
     tracing::debug!("{:?}", may_user_id);
@@ -66,7 +66,7 @@ pub async fn login(
 }
 
 pub async fn login_post(
-    State(pool): State<SqliteConnectionPool>,
+    State(pool): State<ConnectionPool>,
     State(sessions): State<SessionMap>,
     Form(login_info): Form<LoginInfo>,
 ) -> impl IntoResponse {
@@ -132,7 +132,7 @@ pub async fn login_post(
 }
 
 pub async fn register_post(
-    State(pool): State<SqliteConnectionPool>,
+    State(pool): State<ConnectionPool>,
     Form(register_info): Form<RegisterStruct>,
 ) -> impl IntoResponse {
     use schema::users::dsl::{name, users};
@@ -159,7 +159,7 @@ pub async fn register_post(
     }
 }
 
-fn register_user(username: &str, password: &str, pool: &SqliteConnectionPool) {
+fn register_user(username: &str, password: &str, pool: &ConnectionPool) {
     use schema::users::dsl::users;
     let (password_hash, salt) = generate_salt_and_hash(password);
     let new_user = InsertableUser {

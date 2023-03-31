@@ -9,7 +9,7 @@ use crate::helper::*;
 use crate::schema;
 use crate::models::Post;
 pub async fn index(
-    State(pool): State<SqliteConnectionPool>,
+    State(pool): State<ConnectionPool>,
 ) -> impl IntoResponse {
     use schema::posts::dsl::{author as author_id, id as dsl_id, posts, title};
     use schema::users::dsl::{name, users};

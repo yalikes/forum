@@ -15,7 +15,7 @@ use crate::schema;
 pub async fn get_post_with_page(
     Path((post_id, page)): Path<(i32, i32)>,
     may_user_id: UserIdFromSession,
-    State(pool): State<SqliteConnectionPool>,
+    State(pool): State<ConnectionPool>,
 ) -> Html<String> {
     use schema::floor::dsl::{floor, floor_number, post_id as post_id_dsl};
     use schema::posts::dsl::{author as author_id, id as dsl_id, posts, title};
@@ -66,7 +66,7 @@ pub async fn get_post_with_page(
 pub async fn get_post(
     Path(post_id): Path<i32>,
     may_user_id: UserIdFromSession,
-    State(pool): State<SqliteConnectionPool>,
+    State(pool): State<ConnectionPool>,
 ) -> Html<String> {
     use schema::floor::dsl::{floor, post_id as post_id_dsl};
     use schema::posts::dsl::{author as author_id, id as dsl_id, posts, title};

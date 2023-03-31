@@ -13,7 +13,7 @@ use axum::{
 };
 
 use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::SqliteConnection;
+use diesel::PgConnection;
 use serde::{Deserialize, Serialize};
 
 use crate::constants::SESSON_ID_COOKIE_NAME;
@@ -54,7 +54,7 @@ pub struct LoginInfo {
 }
 pub type SessionId = Uuid;
 pub type SessionMap = Arc<RwLock<HashMap<Uuid, (i32, f32)>>>;
-pub type SqliteConnectionPool = Pool<ConnectionManager<SqliteConnection>>;
+pub type ConnectionPool = Pool<ConnectionManager<PgConnection>>;
 
 #[async_trait]
 impl<S> FromRequestParts<S> for UserIdFromSession

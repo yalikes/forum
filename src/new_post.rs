@@ -30,7 +30,7 @@ pub async fn newpost(may_user_id: UserIdFromSession) -> Html<String> {
 
 pub async fn newpost_post(
     may_user_id: UserIdFromSession,
-    State(pool): State<SqliteConnectionPool>,
+    State(pool): State<ConnectionPool>,
     Form(submited_post): Form<NewPost>,
 ) -> Html<String> {
     use schema::floor::dsl::floor;

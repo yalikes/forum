@@ -24,7 +24,7 @@ use tower_http::{
 };
 
 use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::SqliteConnection;
+use diesel::PgConnection;
 
 use dotenvy::dotenv;
 
@@ -63,7 +63,7 @@ async fn main() {
 
     let pool = Pool::builder()
         .max_size(1)
-        .build(ConnectionManager::<SqliteConnection>::new(database_url))
+        .build(ConnectionManager::<PgConnection>::new(database_url))
         .unwrap();
 
     let state = AppState {
