@@ -1,35 +1,38 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
-    floor (id) {
-        id -> Integer,
-        post_id -> Integer,
-        floor_number -> Integer,
-        author -> Integer,
+    floors (id) {
+        id -> Int4,
+        post_id -> Int4,
+        floor_number -> Int4,
+        author -> Int4,
         content -> Text,
     }
 }
 
 diesel::table! {
     posts (id) {
-        id -> Integer,
-        author -> Integer,
+        id -> Int4,
+        author -> Int4,
         title -> Text,
-        extra -> Nullable<Integer>,
     }
 }
 
 diesel::table! {
     users (id) {
-        id -> Integer,
+        id -> Int4,
         name -> Text,
-        passwd -> Binary,
+        passwd -> Bytea,
         salt -> Text,
     }
 }
 
+diesel::joinable!(floors -> posts (post_id));
+diesel::joinable!(floors -> users (author));
+diesel::joinable!(posts -> users (author));
+
 diesel::allow_tables_to_appear_in_same_query!(
-    floor,
+    floors,
     posts,
     users,
 );

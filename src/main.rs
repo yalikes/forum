@@ -10,7 +10,7 @@ use axum::http::HeaderValue;
 use axum::{
     http::StatusCode,
     response::IntoResponse,
-    routing::{get, get_service},
+    routing::{get, get_service, post},
     Router,
 };
 
@@ -62,7 +62,7 @@ async fn main() {
         .init();
 
     let pool = Pool::builder()
-        .max_size(1)
+        .max_size(6)
         .build(ConnectionManager::<PgConnection>::new(database_url))
         .unwrap();
 
@@ -73,7 +73,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/", get(index))
-        .route("/login", get(login).post(login_post))
+        .route("/login", post(login_post))
         .route("/register", get(register).post(register_post))
         .route("/post/:post_id", get(get_post))
         .route("/post/:post_id/:page_id", get(get_post_with_page))

@@ -4,6 +4,7 @@ use axum::{
     response::Html
 };
 
+use diesel::r2d2::R2D2Connection;
 use diesel::{QueryDsl, RunQueryDsl};
 use crate::helper::*;
 use crate::schema;

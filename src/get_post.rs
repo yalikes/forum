@@ -17,7 +17,7 @@ pub async fn get_post_with_page(
     may_user_id: UserIdFromSession,
     State(pool): State<ConnectionPool>,
 ) -> Html<String> {
-    use schema::floor::dsl::{floor, floor_number, post_id as post_id_dsl};
+    use schema::floors::dsl::{floors, floor_number, post_id as post_id_dsl};
     use schema::posts::dsl::{author as author_id, id as dsl_id, posts, title};
     use schema::users::dsl::{name, users};
 
@@ -47,14 +47,14 @@ pub async fn get_post_with_page(
         },
     };
 
-    let floors = match floor
+    let the_floors = match floors
         .filter(post_id_dsl.eq(post.post.id))
         .order_by(floor_number)
         .limit(10)
         .offset(((if page < 0 { 0 } else { page - 1 }) * 10).into())
         .get_results::<Floor>(&mut pool.get().unwrap())
     {
-        Ok(floors) => floors,
+        Ok(the_floors) => the_floors,
         Err(_) => {
             return "can't find floors".to_owned().into();
         }
@@ -68,7 +68,7 @@ pub async fn get_post(
     may_user_id: UserIdFromSession,
     State(pool): State<ConnectionPool>,
 ) -> Html<String> {
-    use schema::floor::dsl::{floor, post_id as post_id_dsl};
+    use schema::floors::dsl::{floors, post_id as post_id_dsl};
     use schema::posts::dsl::{author as author_id, id as dsl_id, posts, title};
     use schema::users::dsl::{name, users};
 
@@ -98,12 +98,12 @@ pub async fn get_post(
         },
     };
 
-    let floors = match floor
+    let the_floors = match floors
         .filter(post_id_dsl.eq(post.post.id))
         .limit(10)
         .get_results::<Floor>(&mut pool.get().unwrap())
     {
-        Ok(floors) => floors,
+        Ok(the_floors) => the_floors,
         Err(_) => {
             return "can't find floors".to_owned().into();
         }
