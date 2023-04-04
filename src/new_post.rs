@@ -1,13 +1,10 @@
 use axum::extract::State;
-use axum::{
-    extract::Form,
-    response::Html,
-};
+use axum::{extract::Form, response::Html};
 
 use rand;
 
-use tokio::io::AsyncReadExt;
 use diesel::{QueryDsl, RunQueryDsl};
+use tokio::io::AsyncReadExt;
 
 use crate::helper::*;
 use crate::models::{InsertableFloor, InsertablePost};
@@ -38,6 +35,23 @@ pub async fn newpost_post(
         UserIdFromSession::FoundUserId(id) => id,
         UserIdFromSession::NotFound => return "please login".to_owned().into(),
     };
-    unimplemented!();
+
+    let post_id: i32 = diesel::insert_into(posts)
+        .values(InsertablePost {
+            author: user_id,
+            title: submited_post.title,
+        })
+        .returning(dsl_post_id)
+        .get_result(&mut pool.get().unwrap())
+        .unwrap();
+    diesel::insert_into(floors)
+        .values(InsertableFloor {
+            post_id,
+            floor_number: 1,
+            author: user_id,
+            content: submited_post.content,
+        })
+        .execute(&mut pool.get().unwrap())
+        .unwrap();
     "create post sucess!".to_owned().into()
 }

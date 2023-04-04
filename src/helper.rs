@@ -15,6 +15,7 @@ use axum::{
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::PgConnection;
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 use crate::constants::SESSON_ID_COOKIE_NAME;
 use crate::models::Post;
@@ -66,12 +67,13 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let sessions = SessionMap::from_ref(state);
         let cookie: Option<TypedHeader<Cookie>> = parts.extract().await.unwrap();
-
+        debug!("into from request parts");
         let session_cookie = cookie
         .as_ref()
         .and_then(|cookie| cookie.get(SESSON_ID_COOKIE_NAME));
 
         tracing::debug!("{}", format!("{:?}", &cookie));
+
         let session_cookie = cookie
             .as_ref()
             .and_then(|cookie| cookie.get(SESSON_ID_COOKIE_NAME));
@@ -83,7 +85,7 @@ where
                 tracing::debug!("found session_id: {}", session_id_str);
 
                 let user_id: i32 = if let Ok(session_id) = Uuid::parse_str(session_id_str) {
-                    match sessions.read().unwrap().get(&session_id) {
+                    match sessions.read().expect("can't read session map").get(&session_id) {
                         Some((uid, _)) => *uid,
                         None => {
                             return Ok(UserIdFromSession::NotFound);
