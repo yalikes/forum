@@ -87,9 +87,9 @@ async fn main() {
     tracing::debug!("listening on {}", addr);
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
-        .with_graceful_shutdown(async move {
+        // .with_graceful_shutdown(async move {
             //TODO: implement graceful shutdown
-        })
+        // })
         .await
         .unwrap();
 }
