@@ -4,21 +4,24 @@ DROP TABLE IF EXISTS posts ;
 DROP TABLE IF EXISTS users ;
 
 CREATE TABLE users(
-        id integer PRIMARY KEY,
+        id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         name text NOT NULL,
         passwd bytea,
-        salt TEXT NOT NULL
+        salt bytea NOT NULL,
+        user_create_time timestamp
 );
 
 CREATE TABLE posts(
-        id integer PRIMARY KEY,
+        id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         author integer REFERENCES users(id),
-        title text NOT NULL
+        title text NOT NULL,
+        post_create_time timestamp
 );
 CREATE TABLE floors(
-        id integer PRIMARY KEY,
+        id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         post_id integer REFERENCES posts(id),
         floor_number INTEGER NOT NULL,
         author integer REFERENCES users(id),
-        content text NOT NULL
+        content text NOT NULL,
+        floor_create_time timestamp
 );

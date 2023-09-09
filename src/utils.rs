@@ -1,20 +1,24 @@
 use openssl::sha::sha256;
 use rand::{self, Rng};
 
-pub fn check(password: &str, salt: &str, password_hash: [u8; 32]) -> bool {
-    // TODO: optimize here
-    openssl::sha::sha256((salt.to_owned() + password).as_bytes()) == password_hash
+pub fn check(password: &str, salt: &[u8], password_hash: &[u8]) -> bool {
+    if salt.len() != 32{
+        return false;
+    }
+    if password_hash.len() != 32{
+        return false;
+    }
+    openssl::sha::sha256(&[salt, password.as_bytes()].concat()) == password_hash
 }
 
-pub fn generate_salt_and_hash(password: &str) -> ([u8; 32], [char; 32]) {
+pub fn generate_salt_and_hash(password: &str) -> ([u8; 32], [u8; 32]) {
     let mut rng = rand::thread_rng();
-    let mut salt_buf: [char; 32] = [0 as char; 32];
+    let mut salt_buf: [u8; 32] = [0; 32];
     for x in &mut salt_buf {
-        let n: u8 = rng.gen_range(0..16);
-        *x = utochar(n);
+        *x = rng.gen();
     }
     (
-        sha256((salt_buf.iter().collect::<String>() + password).as_bytes()),
+        sha256(&[&salt_buf, password.as_bytes()].concat()),
         salt_buf,
     )
 }
@@ -29,9 +33,9 @@ fn utochar(n: u8) -> char {
 #[test]
 fn test_check() {
     let password = "314159265TESTpassword";
-    let salt = "12345678123456781234567812345678";
-    let password_hash = sha256((salt.to_owned() + password).as_bytes());
-    assert!(check(password, salt, password_hash));
+    let salt = &[0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,];
+    let password_hash = sha256(&[salt, password.as_bytes()].concat());
+    assert!(check(password, salt, &password_hash));
 }
 
 #[test]

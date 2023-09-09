@@ -9,7 +9,7 @@ use diesel::{QueryDsl, RunQueryDsl};
 use crate::helper::*;
 use crate::schema;
 use crate::models::Post;
-pub async fn index(
+pub async fn get_recent_post(
     State(pool): State<ConnectionPool>,
 ) -> impl IntoResponse {
     use schema::posts::dsl::{author as author_id, id as dsl_id, posts, title};

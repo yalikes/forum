@@ -41,7 +41,7 @@ mod utils;
 
 use helper::*;
 
-use crate::index::index;
+use crate::index::get_recent_post;
 use crate::register_login::*;
 use app_state::*;
 use get_post::*;
@@ -72,7 +72,7 @@ async fn main() {
     };
 
     let app = Router::new()
-        .route("/post/recent", get(|| async {}))
+        .route("/post/recent", get(get_recent_post))
         .route("/post/get/:post_id", get(|| async {}))
         .route("/account/create", get(|| async {}))
         .with_state(state)

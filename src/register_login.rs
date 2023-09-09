@@ -74,7 +74,7 @@ pub async fn login_post(
     let queryed_result = users
         .filter(name.eq(&login_info.username))
         .select((name, passwd, salt, id))
-        .get_result::<(String, Vec<u8>, String, i32)>(&mut pool.get().unwrap());
+        .get_result::<(String, Vec<u8>, Vec<u8>, i32)>(&mut pool.get().unwrap());
     match queryed_result {
         Err(diesel::NotFound) => (
             StatusCode::NOT_FOUND,
@@ -90,13 +90,7 @@ pub async fn login_post(
             if check(
                 &login_info.password,
                 &queryed_result.2,
-                queryed_result.1.try_into().unwrap_or_else(|v: Vec<u8>| {
-                    panic!(
-                        "Expected a Vec of length {} but got length of {}",
-                        32,
-                        v.len()
-                    )
-                }),
+                &queryed_result.1,
             ) {
                 let session_id = Uuid::new_v4();
                 let mut header = HeaderMap::new();
@@ -165,7 +159,7 @@ fn register_user(username: &str, password: &str, pool: &ConnectionPool) {
     let new_user = InsertableUser {
         name: username.to_owned(),
         passwd: password_hash.to_vec(),
-        salt: salt.iter().collect(),
+        salt: salt.to_vec(),
     };
     diesel::insert_into(users)
         .values(&new_user)

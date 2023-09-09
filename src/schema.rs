@@ -7,6 +7,7 @@ diesel::table! {
         floor_number -> Int4,
         author -> Int4,
         content -> Text,
+        floor_create_time -> Timestamp,
     }
 }
 
@@ -15,6 +16,7 @@ diesel::table! {
         id -> Int4,
         author -> Int4,
         title -> Text,
+        post_create_time ->Timestamp,
     }
 }
 
@@ -23,7 +25,8 @@ diesel::table! {
         id -> Int4,
         name -> Text,
         passwd -> Bytea,
-        salt -> Text,
+        salt -> Bytea,
+        user_create_time -> Timestamp,
     }
 }
 
