@@ -13,10 +13,7 @@ pub fn check(password: &str, salt: &[u8], password_hash: &[u8]) -> bool {
 
 pub fn generate_salt_and_hash(password: &str) -> ([u8; 32], [u8; 32]) {
     let mut rng = rand::thread_rng();
-    let mut salt_buf: [u8; 32] = [0; 32];
-    for x in &mut salt_buf {
-        *x = rng.gen();
-    }
+    let mut salt_buf: [u8; 32] = rng.gen();
     (
         sha256(&[&salt_buf, password.as_bytes()].concat()),
         salt_buf,
