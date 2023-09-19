@@ -1,16 +1,12 @@
 #[macro_use]
 extern crate diesel;
 
-use std::io;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, Ipv6Addr, IpAddr};
 use std::sync::{Arc, RwLock};
 use std::{collections::HashMap, env};
 
-use axum::http::HeaderValue;
 use axum::{
-    http::StatusCode,
-    response::IntoResponse,
-    routing::{get, get_service, post},
+    routing::get,
     Router,
 };
 
@@ -19,7 +15,6 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use tower_http::{
     cors::{Any, CorsLayer},
-    services::ServeDir,
     trace::TraceLayer,
 };
 
@@ -42,10 +37,8 @@ mod utils;
 use helper::*;
 
 use crate::index::get_recent_post;
-use crate::register_login::*;
 use app_state::*;
 use get_post::*;
-use new_post::*;
 
 #[tokio::main]
 async fn main() {
@@ -83,7 +76,7 @@ async fn main() {
                 .allow_methods([Method::GET, Method::POST]),
         );
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    let addr = SocketAddr::new(IpAddr::from(Ipv6Addr::UNSPECIFIED), 3000);
     tracing::debug!("listening on {}", addr);
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
