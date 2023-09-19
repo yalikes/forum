@@ -16,7 +16,7 @@ diesel::table! {
         id -> Int4,
         author -> Int4,
         title -> Text,
-        post_create_time ->Timestamp,
+        post_create_time -> Timestamp,
     }
 }
 
