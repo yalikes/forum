@@ -1,3 +1,4 @@
+#![allow(unused)]
 use openssl::sha::sha256;
 use rand::{self, Rng};
 

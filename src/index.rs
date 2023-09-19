@@ -1,10 +1,6 @@
 use axum::response::IntoResponse;
-use axum::{
-    extract::State,
-    response::Html
-};
+use axum::extract::State;
 
-use diesel::r2d2::R2D2Connection;
 use diesel::{QueryDsl, RunQueryDsl};
 use crate::helper::*;
 use crate::schema;
