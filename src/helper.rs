@@ -33,6 +33,13 @@ pub struct LoginInfo {
     pub username: String,
     pub password: String,
 }
+#[derive(Serialize, Debug)]
+pub enum ResponseResult{
+    Ok,
+    Err
+}
+
 pub type SessionId = Uuid;
 pub type SessionMap = Arc<RwLock<HashMap<Uuid, (i32, f32)>>>;
 pub type ConnectionPool = Pool<ConnectionManager<PgConnection>>;
+

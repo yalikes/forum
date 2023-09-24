@@ -1,5 +1,6 @@
 use crate::schema::{users, posts, floors};
 use serde::Serialize;
+use time::PrimitiveDateTime;
 
 #[derive(Queryable, Debug)]
 #[diesel(table_name = users)]
@@ -46,6 +47,7 @@ pub struct Floor {
     pub floor_number: i32,
     pub author: i32,
     pub content: String,
+    pub floor_create_time: PrimitiveDateTime,
 }
 
 #[derive(Insertable, Debug, Serialize)]

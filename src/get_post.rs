@@ -1,23 +1,28 @@
+use std::vec;
+
 use axum::extract::Path;
+use axum::extract::Query;
 use axum::extract::State;
 use axum::Json;
 
 use diesel::expression_methods::ExpressionMethods;
 use diesel::{QueryDsl, RunQueryDsl};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
+use crate::constants;
 use crate::helper::*;
+use crate::models::Floor;
 use crate::models::Post;
 use crate::schema;
 
 #[derive(Debug, Serialize)]
 pub struct ResponseGetPost {
     state: Result<(), ()>,
-    info: Option<ResponseGetPostInfo>,
+    info: Option<PostInfo>,
 }
 
 #[derive(Debug, Serialize)]
-pub struct ResponseGetPostInfo {
+pub struct PostInfo {
     title: String,
     author: String,
     author_id: i32,
@@ -69,7 +74,7 @@ pub async fn get_post(
 
     ResponseGetPost {
         state: Ok(()),
-        info: Some(ResponseGetPostInfo {
+        info: Some(PostInfo {
             title: post.post.title,
             author: post.author_name,
             author_id: post.post.author,
@@ -79,5 +84,50 @@ pub async fn get_post(
     .into()
 }
 
-#[allow(unused)]
-pub async fn get_floors(Path(post_id): Path<i32>) {}
+#[derive(Deserialize)]
+pub struct FloorRange {
+    start: u32,
+    end: u32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ResponseGetFloor {
+    state: Result<(), ()>,
+    info: Option<GetFloorInfo>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GetFloorInfo {
+    floors: Vec<Floor>,
+}
+
+pub async fn get_floors(
+    Path(post_id): Path<i32>,
+    Query(floor_range): Query<FloorRange>,
+    State(pool): State<ConnectionPool>,
+) -> Json<ResponseGetFloor> {
+    if floor_range.start > floor_range.end {
+        return ResponseGetFloor {
+            state: Err(()),
+            info: None,
+        }
+        .into();
+    }
+    let start = floor_range.start;
+    let end = if floor_range.end - start < constants::MAX_REQUEST_FLOOR_NUMBER as u32 {
+        floor_range.end
+    } else {
+        start + constants::MAX_REQUEST_FLOOR_NUMBER as u32 - 1
+    };
+    use schema::floors::dsl::{floor_number, floors, post_id};
+    let floors_vec: Vec<Floor> = floors
+        .filter(post_id.eq(post_id))
+        .filter(floor_number.between(start as i32, end as i32))
+        .get_results::<Floor>(&mut pool.get().unwrap())
+        .unwrap();
+    ResponseGetFloor {
+        state: Ok(()),
+        info: Some(GetFloorInfo { floors: floors_vec }),
+    }
+    .into()
+}

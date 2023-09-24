@@ -67,6 +67,7 @@ async fn main() {
     let app = Router::new()
         .route("/post/recent", get(get_recent_post))
         .route("/post/get/:post_id", get(get_post))
+        .route("/post/get/floor/:post_id", get(get_floors))
         .route("/account/create", get(|| async {}))
         .with_state(state)
         .layer(TraceLayer::new_for_http())
