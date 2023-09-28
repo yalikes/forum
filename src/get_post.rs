@@ -10,6 +10,7 @@ use diesel::{QueryDsl, RunQueryDsl};
 use serde::{Deserialize, Serialize};
 
 use crate::constants;
+use crate::helper;
 use crate::helper::*;
 use crate::models::Floor;
 use crate::models::Post;
@@ -17,7 +18,7 @@ use crate::schema;
 
 #[derive(Debug, Serialize)]
 pub struct ResponseGetPost {
-    state: Result<(), ()>,
+    state: ResponseResult,
     info: Option<PostInfo>,
 }
 
@@ -45,7 +46,7 @@ pub async fn get_post(
         Ok(p) => p,
         Err(_) => {
             return ResponseGetPost {
-                state: Err(()),
+                state: ResponseResult::Err,
                 info: None,
             }
             .into();
@@ -73,7 +74,7 @@ pub async fn get_post(
         .unwrap_or(0) as u32;
 
     ResponseGetPost {
-        state: Ok(()),
+        state: ResponseResult::Ok,
         info: Some(PostInfo {
             title: post.post.title,
             author: post.author_name,
@@ -92,7 +93,7 @@ pub struct FloorRange {
 
 #[derive(Debug, Serialize)]
 pub struct ResponseGetFloor {
-    state: Result<(), ()>,
+    state: ResponseResult,
     info: Option<GetFloorInfo>,
 }
 
@@ -108,7 +109,7 @@ pub async fn get_floors(
 ) -> Json<ResponseGetFloor> {
     if floor_range.start > floor_range.end {
         return ResponseGetFloor {
-            state: Err(()),
+            state: ResponseResult::Err,
             info: None,
         }
         .into();
@@ -126,7 +127,7 @@ pub async fn get_floors(
         .get_results::<Floor>(&mut pool.get().unwrap())
         .unwrap();
     ResponseGetFloor {
-        state: Ok(()),
+        state: ResponseResult::Ok,
         info: Some(GetFloorInfo { floors: floors_vec }),
     }
     .into()

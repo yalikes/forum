@@ -1,13 +1,27 @@
-use axum::response::IntoResponse;
 use axum::extract::State;
+use axum::response::Json;
+use serde::Serialize;
 
 use diesel::{QueryDsl, RunQueryDsl};
 use crate::helper::*;
 use crate::schema;
 use crate::models::Post;
+use crate::helper::ResponseResult;
+
+#[derive(Debug, Serialize)]
+pub struct ResponseGetRecentPost{
+    state: ResponseResult,
+    info: Option<ResponseGetRecentPostInfo>
+}
+
+#[derive(Debug, Serialize)]
+pub struct ResponseGetRecentPostInfo{
+    posts: Vec<PostWithAuthor>
+}
+
 pub async fn get_recent_post(
     State(pool): State<ConnectionPool>,
-) -> impl IntoResponse {
+) -> Json<ResponseGetRecentPost> {
     use schema::posts::dsl::{author as author_id, id as dsl_id, posts, title};
     use schema::users::dsl::{name, users};
     let mut posts_with_author_name: Vec<PostWithAuthor> = Vec::new();
@@ -28,5 +42,10 @@ pub async fn get_recent_post(
         }
 
     }
-    serde_json::to_string(&posts_with_author_name).unwrap()
+    ResponseGetRecentPost{
+        state: ResponseResult::Ok,
+        info: Some(ResponseGetRecentPostInfo {
+            posts: posts_with_author_name
+        })
+    }.into()
 }
