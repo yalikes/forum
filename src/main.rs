@@ -1,3 +1,4 @@
+#![allow(unused)]
 #[macro_use]
 extern crate diesel;
 
@@ -5,12 +6,15 @@ use std::net::{SocketAddr, Ipv6Addr, IpAddr};
 use std::sync::{Arc, RwLock};
 use std::{collections::HashMap, env};
 
+use axum::extract::MatchedPath;
 use axum::{
     routing::get,
     Router,
+    http::Request,
 };
 
 use hyper::Method;
+use tracing::info_span;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use tower_http::{
@@ -75,12 +79,13 @@ async fn main() {
             CorsLayer::new()
                 .allow_origin(Any) // TODO: set allow origin
                 .allow_methods([Method::GET, Method::POST]),
-        );
+        )
+        ;
 
     let addr = SocketAddr::new(IpAddr::from(Ipv6Addr::UNSPECIFIED), 3000);
     tracing::debug!("listening on {}", addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    axum::serve(listener, app.into_make_service())
         // .with_graceful_shutdown(async move {
             //TODO: implement graceful shutdown
         // })
