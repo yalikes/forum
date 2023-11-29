@@ -8,7 +8,7 @@ use std::{collections::HashMap, env};
 
 use axum::extract::MatchedPath;
 use axum::{
-    routing::get,
+    routing::{get, post},
     Router,
     http::Request,
 };
@@ -41,6 +41,7 @@ mod utils;
 use helper::*;
 
 use crate::index::get_recent_post;
+use crate::register_login::register_user;
 use app_state::*;
 use get_post::*;
 
@@ -72,7 +73,7 @@ async fn main() {
         .route("/post/recent", get(get_recent_post))
         .route("/post/get/:post_id", get(get_post))
         .route("/post/get/floor/:post_id", get(get_floors))
-        .route("/account/create", get(|| async {}))
+        .route("/account/create", post(register_user))
         .with_state(state)
         .layer(TraceLayer::new_for_http())
         .layer(

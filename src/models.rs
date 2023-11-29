@@ -10,6 +10,7 @@ pub struct User {
     pub name: String,
     pub passwd: Vec<u8>,
     pub salt: Vec<u8>,
+    pub user_create_time: Option<PrimitiveDateTime>,
 }
 
 #[derive(Insertable, Debug)]
@@ -19,10 +20,11 @@ pub struct InsertableUser {
     pub name: String,
     pub passwd: Vec<u8>,
     pub salt: Vec<u8>,
+    pub user_create_time: Option<PrimitiveDateTime>,
 }
 
 #[derive(Queryable, Debug, Serialize)]
-#[diesel(table_name = users)]
+#[diesel(table_name = post)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Post {
     pub id: i32,
