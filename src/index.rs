@@ -35,7 +35,7 @@ pub async fn get_recent_post(
         for post in some_post {
             let author_name = users
                 .select(name)
-                .find(post.author)
+                .find(post.author.unwrap())
                 .get_result::<String>(conn)
                 .unwrap_or_else(|_| "unknown user".to_owned());
             posts_with_author_name.push(PostWithAuthor { post, author_name });

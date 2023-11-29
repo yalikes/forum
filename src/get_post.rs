@@ -54,7 +54,7 @@ pub async fn get_post(
     };
 
     let post: PostWithAuthor = match users
-        .find(post_inner.author)
+        .find(post_inner.author.unwrap())
         .select(name)
         .first::<String>(&mut pool.get().unwrap())
     {
@@ -78,7 +78,7 @@ pub async fn get_post(
         info: Some(PostInfo {
             title: post.post.title,
             author: post.author_name,
-            author_id: post.post.author,
+            author_id: post.post.author.unwrap(),
             floor_num,
         }),
     }

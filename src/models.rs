@@ -26,7 +26,7 @@ pub struct InsertableUser {
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Post {
     pub id: i32,
-    pub author: i32,
+    pub author: Option<i32>,
     pub title: String,
 }
 
@@ -43,11 +43,11 @@ pub struct InsertablePost {
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Floor {
     pub id: i32,
-    pub post_id: i32,
+    pub post_id: Option<i32>,
     pub floor_number: i32,
-    pub author: i32,
+    pub author: Option<i32>,
     pub content: String,
-    pub floor_create_time: PrimitiveDateTime,
+    pub floor_create_time: Option<PrimitiveDateTime>,
 }
 
 #[derive(Insertable, Debug, Serialize)]

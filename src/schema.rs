@@ -3,20 +3,20 @@
 diesel::table! {
     floors (id) {
         id -> Int4,
-        post_id -> Int4,
+        post_id -> Nullable<Int4>,
         floor_number -> Int4,
-        author -> Int4,
+        author -> Nullable<Int4>,
         content -> Text,
-        floor_create_time -> Timestamp,
+        floor_create_time -> Nullable<Timestamp>,
     }
 }
 
 diesel::table! {
     posts (id) {
         id -> Int4,
-        author -> Int4,
+        author -> Nullable<Int4>,
         title -> Text,
-        post_create_time -> Timestamp,
+        post_create_time -> Nullable<Timestamp>,
     }
 }
 
@@ -26,7 +26,7 @@ diesel::table! {
         name -> Text,
         passwd -> Bytea,
         salt -> Bytea,
-        user_create_time -> Timestamp,
+        user_create_time -> Nullable<Timestamp>,
     }
 }
 
