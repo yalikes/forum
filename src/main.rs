@@ -79,9 +79,9 @@ async fn main() {
         .layer(
             CorsLayer::new()
                 .allow_origin(Any) // TODO: set allow origin
+                .allow_headers(Any)
                 .allow_methods([Method::GET, Method::POST]),
-        )
-        ;
+        );
 
     let addr = SocketAddr::new(IpAddr::from(Ipv6Addr::UNSPECIFIED), 3000);
     tracing::debug!("listening on {}", addr);

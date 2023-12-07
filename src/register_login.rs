@@ -22,11 +22,19 @@ pub struct RegisterUserInfo {
 }
 
 #[derive(Debug, Serialize)]
-pub struct ResponseRegisterUser {
-    state: ResponseResult,
-    info: Option<RegisterUserInfo>,
+pub enum ResponseRegisterUserState {
+    Success,
+    UserNameExists,
+    PasswordTooShort,
+    InnerServerError,
 }
 
+#[derive(Debug, Serialize)]
+pub struct ResponseRegisterUser {
+    state: ResponseRegisterUserState,
+    info: Option<RegisterUserInfo>,
+}
+c
 #[derive(Deserialize, Debug)]
 pub struct RequestRegisterUser {
     user_name: String,
@@ -42,7 +50,7 @@ pub async fn register_user(
     // TODO: add more return infomation
     if register_info.password.len() < 9 {
         return ResponseRegisterUser {
-            state: ResponseResult::Err,
+            state: ResponseRegisterUserState::PasswordTooShort,
             info: None,
         }
         .into();
@@ -56,7 +64,7 @@ pub async fn register_user(
         .is_positive();
     if user_name_exists {
         return ResponseRegisterUser {
-            state: ResponseResult::Err,
+            state: ResponseRegisterUserState::UserNameExists,
             info: None,
         }
         .into();
@@ -70,7 +78,7 @@ pub async fn register_user(
         .unwrap()
         .insert(user_session_id, (user_id, 24.0 * 60.0 * 60.0));
     ResponseRegisterUser {
-        state: ResponseResult::Ok,
+        state: ResponseRegisterUserState::Success,
         info: Some(RegisterUserInfo {
             id: user_id,
             session_id: user_session_id.to_string(),
@@ -87,7 +95,10 @@ pub async fn insert_user(pool: ConnectionPool, name: &str, passwd: &str) -> User
         name: name.to_string(),
         passwd: passwd.to_vec(),
         salt: salt.to_vec(),
-        user_create_time: Some(PrimitiveDateTime::new(current_time.date(), current_time.time()))
+        user_create_time: Some(PrimitiveDateTime::new(
+            current_time.date(),
+            current_time.time(),
+        )),
     };
     insert_into(users)
         .values(&user)
