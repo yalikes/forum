@@ -34,7 +34,6 @@ pub struct ResponseRegisterUser {
     state: ResponseRegisterUserState,
     info: Option<RegisterUserInfo>,
 }
-c
 #[derive(Deserialize, Debug)]
 pub struct RequestRegisterUser {
     user_name: String,
