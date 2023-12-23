@@ -2,10 +2,12 @@ use core::panic;
 use std::borrow::BorrowMut;
 
 use crate::models::{InsertableUser, User};
+use crate::sqlx_helper::SqlxI32;
 use crate::utils::generate_salt_and_hash;
 use axum::extract::State;
 use axum::Json;
 use serde::{Deserialize, Serialize};
+use sqlx::postgres::PgRow;
 use sqlx::types::time::PrimitiveDateTime;
 use tracing::debug;
 use uuid::Uuid;
@@ -42,7 +44,6 @@ pub async fn register_user(
     State(pool): State<ConnectionPool>,
     Json(register_info): Json<RequestRegisterUser>,
 ) -> Json<ResponseRegisterUser> {
-    panic!()
     // TODO: add more return infomation
     // if register_info.password.len() < 9 {
     //     return ResponseRegisterUser {
@@ -51,13 +52,23 @@ pub async fn register_user(
     //     }
     //     .into();
     // }
-    // let user_name_exists = users
-    //     .filter(name.eq(&register_info.user_name))
-    //     .limit(1)
-    //     .count()
-    //     .get_result::<i64>(&mut pool.get().unwrap())
-    //     .unwrap_or(0)
-    //     .is_positive();
+    // let user_name_exists =
+    //     match sqlx::query_as::<_, SqlxI32>("SELECT COUNT(*) from users WHERE name = $1 LIMIT 1")
+    //         .bind(&register_info.user_name)
+    //         .fetch_one(&pool)
+    //         .await
+    //     {
+    //         Err(e) => {
+    //             debug!("{:?}", e);
+    //             return ResponseRegisterUser {
+    //                 state: ResponseRegisterUserState::InnerServerError,
+    //                 info: None,
+    //             }
+    //             .into();
+    //         }
+    //         Ok(i) => i.val.is_positive(),
+    //     };
+
     // if user_name_exists {
     //     return ResponseRegisterUser {
     //         state: ResponseRegisterUserState::UserNameExists,
@@ -65,6 +76,7 @@ pub async fn register_user(
     //     }
     //     .into();
     // }
+
     // let user_session_id = Uuid::new_v4();
     // let user_id = insert_user(pool, &register_info.user_name, &register_info.password)
     //     .await
@@ -81,23 +93,29 @@ pub async fn register_user(
     //     }),
     // }
     // .into()
+    panic!()
 }
 
 pub async fn insert_user(pool: ConnectionPool, name: &str, passwd: &str) -> User {
-    panic!()
-    // let (passwd, salt) = generate_salt_and_hash(&passwd);
-    // let current_time = time::OffsetDateTime::now_utc();
-    // let user = InsertableUser {
-    //     name: name.to_string(),
-    //     passwd: passwd.to_vec(),
-    //     salt: salt.to_vec(),
-    //     user_create_time: Some(PrimitiveDateTime::new(
-    //         current_time.date(),
-    //         current_time.time(),
-    //     )),
-    // };
-    // insert_into(users)
-    //     .values(&user)
-    //     .get_result(pool.get().unwrap().borrow_mut())
-    //     .unwrap()
+    let (passwd, salt) = generate_salt_and_hash(&passwd);
+    let current_time = time::OffsetDateTime::now_utc();
+    let user = InsertableUser {
+        name: name.to_string(),
+        passwd: passwd.to_vec(),
+        salt: salt.to_vec(),
+        user_create_time: Some(PrimitiveDateTime::new(
+            current_time.date(),
+            current_time.time(),
+        )),
+    };
+    sqlx::query_as::<_, User>(
+        "INSERT INTO users(name, passwd, salt, user_create_time) VALUES ($1, $2, $3, $4)",
+    )
+    .bind(user.name)
+    .bind(user.passwd)
+    .bind(user.salt)
+    .bind(user.user_create_time)
+    .fetch_one(&pool)
+    .await
+    .unwrap()
 }

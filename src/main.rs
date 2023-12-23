@@ -32,6 +32,8 @@ mod models;
 mod new_post;
 mod register_login;
 mod utils;
+mod account_tools;
+mod sqlx_helper;
 
 use helper::*;
 

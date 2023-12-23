@@ -6,7 +6,10 @@ use axum::extract::State;
 use axum::Json;
 
 use serde::{Deserialize, Serialize};
+use sqlx::prelude::FromRow;
 
+use crate::account_tools::get_user_name;
+use crate::account_tools::get_user_name_with_default;
 use crate::constants;
 use crate::helper;
 use crate::helper::*;
@@ -31,52 +34,42 @@ pub async fn get_post(
     Path(post_id): Path<i32>,
     State(pool): State<ConnectionPool>,
 ) -> Json<ResponseGetPost> {
-    panic!()
-    // let post_inner: Post = match posts
-    //     .find(post_id)
-    //     .select((dsl_id, author_id, title))
-    //     .first::<Post>(&mut pool.get().unwrap())
-    // {
-    //     Ok(p) => p,
-    //     Err(_) => {
-    //         return ResponseGetPost {
-    //             state: ResponseResult::Err,
-    //             info: None,
-    //         }
-    //         .into();
-    //     }
-    // };
+    panic!();
+    let post_inner: Post = match sqlx::query_as("SELECT * FROM posts").fetch_one(&pool).await {
+        Ok(p) => p,
+        Err(_) => {
+            return ResponseGetPost {
+                state: ResponseResult::Err,
+                info: None,
+            }
+            .into();
+        }
+    };
+    let author_name = get_user_name_with_default(post_inner.author, pool.clone()).await;
+    let post: PostWithAuthor = PostWithAuthor {
+        post: post_inner,
+        author_name,
+    };
+    #[derive(FromRow)]
+    struct FloorNum {
+        floor_num: i32,
+    }
+    let floor_num = sqlx::query_as::<_, FloorNum>("SELECT COUNT(id) FROM floors WHERE post_id = ?")
+        .bind(post_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap_or(FloorNum { floor_num: 0 });
 
-    // let post: PostWithAuthor = match users
-    //     .find(post_inner.author.unwrap())
-    //     .select(name)
-    //     .first::<String>(&mut pool.get().unwrap())
-    // {
-    //     Ok(author_name) => PostWithAuthor {
-    //         post: post_inner,
-    //         author_name: author_name,
-    //     },
-    //     Err(_) => PostWithAuthor {
-    //         post: post_inner,
-    //         author_name: "unknown".to_owned(),
-    //     },
-    // };
-    // let floor_num = floors
-    //     .filter(post_id_dsl.eq(post.post.id))
-    //     .count()
-    //     .get_result::<i64>(&mut pool.get().unwrap())
-    //     .unwrap_or(0) as u32;
-
-    // ResponseGetPost {
-    //     state: ResponseResult::Ok,
-    //     info: Some(PostInfo {
-    //         title: post.post.title,
-    //         author: post.author_name,
-    //         author_id: post.post.author.unwrap(),
-    //         floor_num,
-    //     }),
-    // }
-    // .into()
+    ResponseGetPost {
+        state: ResponseResult::Ok,
+        info: Some(PostInfo {
+            title: post.post.title,
+            author: post.author_name,
+            author_id: post.post.author.unwrap(),
+            floor_num: floor_num.floor_num as u32,
+        }),
+    }
+    .into()
 }
 
 #[derive(Deserialize)]
@@ -101,28 +94,35 @@ pub async fn get_floors(
     Query(floor_range): Query<FloorRange>,
     State(pool): State<ConnectionPool>,
 ) -> Json<ResponseGetFloor> {
-    panic!()
-    // if floor_range.start > floor_range.end {
-    //     return ResponseGetFloor {
-    //         state: ResponseResult::Err,
-    //         info: None,
-    //     }
-    //     .into();
-    // }
-    // let start = floor_range.start;
-    // let end = if floor_range.end - start < constants::MAX_REQUEST_FLOOR_NUMBER as u32 {
-    //     floor_range.end
-    // } else {
-    //     start + constants::MAX_REQUEST_FLOOR_NUMBER as u32 - 1
-    // };
-    // let floors_vec: Vec<Floor> = floors
-    //     .filter(post_id.eq(post_id))
-    //     .filter(floor_number.between(start as i32, end as i32))
-    //     .get_results::<Floor>(&mut pool.get().unwrap())
-    //     .unwrap();
-    // ResponseGetFloor {
-    //     state: ResponseResult::Ok,
-    //     info: Some(GetFloorInfo { floors: floors_vec }),
-    // }
-    // .into()
+    if floor_range.start > floor_range.end {
+        return ResponseGetFloor {
+            state: ResponseResult::Err,
+            info: None,
+        }
+        .into();
+    }
+    let start = floor_range.start;
+    let end = if floor_range.end - start < constants::MAX_REQUEST_FLOOR_NUMBER as u32 {
+        floor_range.end
+    } else {
+        start + constants::MAX_REQUEST_FLOOR_NUMBER as u32 - 1
+    };
+    let floors_vec: Vec<Floor> = sqlx::query_as(
+        r#"SELECT * from floors
+                    WHERE post_id = ?
+                    WHERE floor_number BETWEEN ? AND ?
+            "#,
+    )
+    .bind(post_id)
+    .bind(start as i32)
+    .bind(end as i32)
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+
+    ResponseGetFloor {
+        state: ResponseResult::Ok,
+        info: Some(GetFloorInfo { floors: floors_vec }),
+    }
+    .into()
 }

@@ -2,6 +2,7 @@ use serde::Serialize;
 use sqlx::prelude::FromRow;
 use sqlx::types::time::PrimitiveDateTime;
 
+#[derive(Debug,FromRow)]
 pub struct User {
     pub id: i32,
     pub name: String,
@@ -26,7 +27,7 @@ pub struct Post {
 }
 
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, FromRow)]
 pub struct Floor {
     pub id: i32,
     pub post_id: Option<i32>,
