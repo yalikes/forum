@@ -17,7 +17,8 @@ tower-http = { version = "*", features = ["cors", "trace"] }
 tracing = "*"
 tracing-subscriber = { version = "*", features = ["env-filter"] }
 
-diesel = {version = "2.0", features = ["postgres", "r2d2", "time"]}
+sqlx = {version="*", features = ["runtime-tokio","tls-native-tls", "postgres", "time"]}
+
 serde = { version = "1.0", features = ["derive"] }
 serde_json = {version = "1.0"}
 uuid = {version = "1.1.2", features = ["v4"]}

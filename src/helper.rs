@@ -2,8 +2,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use crate::models::Post;
-use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::PgConnection;
+use sqlx::Pool;
+use sqlx::Postgres;
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -41,5 +42,5 @@ pub enum ResponseResult{
 
 pub type SessionId = Uuid;
 pub type SessionMap = Arc<RwLock<HashMap<Uuid, (i32, f32)>>>;
-pub type ConnectionPool = Pool<ConnectionManager<PgConnection>>;
+pub type ConnectionPool = Pool<Postgres>;
 

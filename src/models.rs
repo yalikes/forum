@@ -1,10 +1,7 @@
-use crate::schema::{users, posts, floors};
 use serde::Serialize;
-use time::PrimitiveDateTime;
+use sqlx::prelude::FromRow;
+use sqlx::types::time::PrimitiveDateTime;
 
-#[derive(Queryable, Debug)]
-#[diesel(table_name = users)]
-#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct User {
     pub id: i32,
     pub name: String,
@@ -13,9 +10,6 @@ pub struct User {
     pub user_create_time: Option<PrimitiveDateTime>,
 }
 
-#[derive(Insertable, Debug)]
-#[diesel(table_name = users)]
-#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct InsertableUser {
     pub name: String,
     pub passwd: Vec<u8>,
@@ -23,26 +17,16 @@ pub struct InsertableUser {
     pub user_create_time: Option<PrimitiveDateTime>,
 }
 
-#[derive(Queryable, Debug, Serialize)]
-#[diesel(table_name = post)]
-#[diesel(check_for_backend(diesel::pg::Pg))]
+#[derive(Debug, Serialize,FromRow)]
 pub struct Post {
     pub id: i32,
     pub author: Option<i32>,
     pub title: String,
+    pub post_create_time: Option<PrimitiveDateTime>,
 }
 
-#[derive(Insertable, Debug, Serialize)]
-#[diesel(table_name = posts)]
-#[diesel(check_for_backend(diesel::pg::Pg))]
-pub struct InsertablePost {
-    pub author: i32,
-    pub title: String,
-}
 
-#[derive(Queryable, Debug, Serialize)]
-#[diesel(table_name = floors)]
-#[diesel(check_for_backend(diesel::pg::Pg))]
+#[derive(Debug, Serialize)]
 pub struct Floor {
     pub id: i32,
     pub post_id: Option<i32>,
@@ -52,9 +36,6 @@ pub struct Floor {
     pub floor_create_time: Option<PrimitiveDateTime>,
 }
 
-#[derive(Insertable, Debug, Serialize)]
-#[diesel(table_name = floors)]
-#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct InsertableFloor {
     pub post_id: i32,
     pub floor_number: i32,

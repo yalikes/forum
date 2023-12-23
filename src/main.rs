@@ -1,16 +1,13 @@
 #![allow(unused)]
-#[macro_use]
-extern crate diesel;
-
-use std::net::{SocketAddr, Ipv6Addr, IpAddr};
+use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use std::sync::{Arc, RwLock};
 use std::{collections::HashMap, env};
 
 use axum::extract::MatchedPath;
 use axum::{
+    http::Request,
     routing::{get, post},
     Router,
-    http::Request,
 };
 
 use hyper::Method;
@@ -22,10 +19,9 @@ use tower_http::{
     trace::TraceLayer,
 };
 
-use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::PgConnection;
-
 use dotenvy::dotenv;
+
+use sqlx::postgres::PgPoolOptions;
 
 mod app_state;
 mod constants;
@@ -35,7 +31,6 @@ mod index;
 mod models;
 mod new_post;
 mod register_login;
-mod schema;
 mod utils;
 
 use helper::*;
@@ -58,11 +53,11 @@ async fn main() {
         ))
         .with(tracing_subscriber::fmt::layer())
         .init();
-
-    let pool = Pool::builder()
-        .max_size(6)
-        .build(ConnectionManager::<PgConnection>::new(database_url))
-        .unwrap();
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url)
+        .await
+        .expect("can't connect database");
 
     let state = AppState {
         sessions: sessions,
@@ -88,7 +83,7 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app.into_make_service())
         // .with_graceful_shutdown(async move {
-            //TODO: implement graceful shutdown
+        //TODO: implement graceful shutdown
         // })
         .await
         .unwrap();
