@@ -60,7 +60,7 @@ async fn main() {
         .init();
 
     let mut opt = ConnectOptions::new(database_url);
-    opt.max_connections(100)
+    opt.max_connections(12)
         .min_connections(1)
         .connect_timeout(Duration::from_secs(8))
         .acquire_timeout(Duration::from_secs(8))
