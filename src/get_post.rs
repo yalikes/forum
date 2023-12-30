@@ -5,6 +5,10 @@ use axum::extract::Query;
 use axum::extract::State;
 use axum::Json;
 
+use sea_orm::ColumnTrait;
+use sea_orm::EntityTrait;
+use sea_orm::PaginatorTrait;
+use sea_orm::QueryFilter;
 use serde::{Deserialize, Serialize};
 use sqlx::prelude::FromRow;
 
@@ -34,10 +38,25 @@ pub async fn get_post(
     Path(post_id): Path<i32>,
     State(pool): State<ConnectionPool>,
 ) -> Json<ResponseGetPost> {
-    panic!();
-    let post_inner: Post = match sqlx::query_as("SELECT * FROM posts").fetch_one(&pool).await {
-        Ok(p) => p,
-        Err(_) => {
+    use crate::entity::floors;
+    use crate::entity::posts;
+    let post_inner: Post = match posts::Entity::find_by_id(post_id).one(&pool).await {
+        Ok(p) => match p {
+            Some(post) => Post {
+                id: post.id,
+                author: post.author,
+                title: post.title,
+                post_create_time: post.post_create_time,
+            },
+            None => {
+                return ResponseGetPost {
+                    state: ResponseResult::Err,
+                    info: None,
+                }
+                .into();
+            }
+        },
+        Err(e) => {
             return ResponseGetPost {
                 state: ResponseResult::Err,
                 info: None,
@@ -45,28 +64,23 @@ pub async fn get_post(
             .into();
         }
     };
-    let author_name = get_user_name_with_default(post_inner.author, pool.clone()).await;
+    let author_name = get_user_name_with_default(post_inner.author, &pool.clone()).await;
     let post: PostWithAuthor = PostWithAuthor {
         post: post_inner,
         author_name,
     };
-    #[derive(FromRow)]
-    struct FloorNum {
-        floor_num: i32,
-    }
-    let floor_num = sqlx::query_as::<_, FloorNum>("SELECT COUNT(id) FROM floors WHERE post_id = ?")
-        .bind(post_id)
-        .fetch_one(&pool)
+    let floor_num = floors::Entity::find()
+        .filter(floors::Column::PostId.eq(post_id))
+        .count(&pool)
         .await
-        .unwrap_or(FloorNum { floor_num: 0 });
-
+        .unwrap_or(0);
     ResponseGetPost {
         state: ResponseResult::Ok,
         info: Some(PostInfo {
             title: post.post.title,
             author: post.author_name,
             author_id: post.post.author.unwrap(),
-            floor_num: floor_num.floor_num as u32,
+            floor_num: floor_num as u32,
         }),
     }
     .into()
@@ -107,19 +121,25 @@ pub async fn get_floors(
     } else {
         start + constants::MAX_REQUEST_FLOOR_NUMBER as u32 - 1
     };
-    let floors_vec: Vec<Floor> = sqlx::query_as(
-        r#"SELECT * from floors
-                    WHERE post_id = ?
-                    WHERE floor_number BETWEEN ? AND ?
-            "#,
-    )
-    .bind(post_id)
-    .bind(start as i32)
-    .bind(end as i32)
-    .fetch_all(&pool)
-    .await
-    .unwrap();
 
+    use crate::entity::floors;
+
+    let floors_vec: Vec<Floor> = floors::Entity::find()
+        .filter(floors::Column::PostId.eq(post_id))
+        .filter(floors::Column::FloorNumber.between(start, end))
+        .all(&pool)
+        .await
+        .unwrap_or(vec![])
+        .iter()
+        .map(|m| Floor {
+            id: m.id,
+            post_id: m.post_id,
+            floor_number: m.floor_number,
+            author: m.author,
+            content: m.content.clone(),
+            floor_create_time: m.floor_create_time,
+        })
+        .collect();
     ResponseGetFloor {
         state: ResponseResult::Ok,
         info: Some(GetFloorInfo { floors: floors_vec }),

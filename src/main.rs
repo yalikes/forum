@@ -2,6 +2,7 @@
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use std::sync::{Arc, RwLock};
 use std::{collections::HashMap, env};
+use std::time::Duration;
 
 use axum::extract::MatchedPath;
 use axum::{
@@ -22,7 +23,9 @@ use tower_http::{
 use dotenvy::dotenv;
 
 use sqlx::postgres::PgPoolOptions;
+use sea_orm::{ConnectOptions, Database};
 
+mod account_tools;
 mod app_state;
 mod constants;
 mod get_post;
@@ -31,9 +34,9 @@ mod index;
 mod models;
 mod new_post;
 mod register_login;
-mod utils;
-mod account_tools;
 mod sqlx_helper;
+mod utils;
+mod entity;
 
 use helper::*;
 
@@ -55,15 +58,23 @@ async fn main() {
         ))
         .with(tracing_subscriber::fmt::layer())
         .init();
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
-        .await
-        .expect("can't connect database");
+
+    let mut opt = ConnectOptions::new(database_url);
+    opt.max_connections(100)
+        .min_connections(1)
+        .connect_timeout(Duration::from_secs(8))
+        .acquire_timeout(Duration::from_secs(8))
+        .idle_timeout(Duration::from_secs(8))
+        .max_lifetime(Duration::from_secs(8))
+        .sqlx_logging(true)
+        .sqlx_logging_level(log::LevelFilter::Debug);
+
+    
+    let db = Database::connect(opt).await.expect("failed to connect database");
 
     let state = AppState {
         sessions: sessions,
-        database_conn_pool: pool,
+        database_conn_pool: db,
     };
 
     let app = Router::new()

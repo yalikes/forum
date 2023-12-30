@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use crate::models::Post;
+use sea_orm::DatabaseConnection;
 use sqlx::Pool;
 use sqlx::Postgres;
 
@@ -42,5 +43,5 @@ pub enum ResponseResult{
 
 pub type SessionId = Uuid;
 pub type SessionMap = Arc<RwLock<HashMap<Uuid, (i32, f32)>>>;
-pub type ConnectionPool = Pool<Postgres>;
+pub type ConnectionPool = DatabaseConnection;
 

@@ -6,6 +6,10 @@ use crate::sqlx_helper::SqlxI32;
 use crate::utils::generate_salt_and_hash;
 use axum::extract::State;
 use axum::Json;
+use sea_orm::ActiveValue::NotSet;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DbErr, EntityTrait, PaginatorTrait, QueryFilter, Set,
+};
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgRow;
 use sqlx::types::time::PrimitiveDateTime;
@@ -45,77 +49,77 @@ pub async fn register_user(
     Json(register_info): Json<RequestRegisterUser>,
 ) -> Json<ResponseRegisterUser> {
     // TODO: add more return infomation
-    // if register_info.password.len() < 9 {
-    //     return ResponseRegisterUser {
-    //         state: ResponseRegisterUserState::PasswordTooShort,
-    //         info: None,
-    //     }
-    //     .into();
-    // }
-    // let user_name_exists =
-    //     match sqlx::query_as::<_, SqlxI32>("SELECT COUNT(*) from users WHERE name = $1 LIMIT 1")
-    //         .bind(&register_info.user_name)
-    //         .fetch_one(&pool)
-    //         .await
-    //     {
-    //         Err(e) => {
-    //             debug!("{:?}", e);
-    //             return ResponseRegisterUser {
-    //                 state: ResponseRegisterUserState::InnerServerError,
-    //                 info: None,
-    //             }
-    //             .into();
-    //         }
-    //         Ok(i) => i.val.is_positive(),
-    //     };
+    if register_info.password.len() < 9 {
+        return ResponseRegisterUser {
+            state: ResponseRegisterUserState::PasswordTooShort,
+            info: None,
+        }
+        .into();
+    }
+    let user_name_exists = check_user_name_exists(&pool, &register_info.user_name).await;
+    if user_name_exists.is_err() {
+        return ResponseRegisterUser {
+            state: ResponseRegisterUserState::InnerServerError,
+            info: None,
+        }
+        .into();
+    }
+    if user_name_exists.unwrap() {
+        return ResponseRegisterUser {
+            state: ResponseRegisterUserState::UserNameExists,
+            info: None,
+        }
+        .into();
+    }
 
-    // if user_name_exists {
-    //     return ResponseRegisterUser {
-    //         state: ResponseRegisterUserState::UserNameExists,
-    //         info: None,
-    //     }
-    //     .into();
-    // }
-
-    // let user_session_id = Uuid::new_v4();
-    // let user_id = insert_user(pool, &register_info.user_name, &register_info.password)
-    //     .await
-    //     .id;
-    // sessions
-    //     .write()
-    //     .unwrap()
-    //     .insert(user_session_id, (user_id, 24.0 * 60.0 * 60.0));
-    // ResponseRegisterUser {
-    //     state: ResponseRegisterUserState::Success,
-    //     info: Some(RegisterUserInfo {
-    //         id: user_id,
-    //         session_id: user_session_id.to_string(),
-    //     }),
-    // }
-    // .into()
-    panic!()
+    let user_session_id = Uuid::new_v4();
+    let user_id = insert_user(pool, &register_info.user_name, &register_info.password)
+        .await
+        .id;
+    sessions
+        .write()
+        .unwrap()
+        .insert(user_session_id, (user_id, 24.0 * 60.0 * 60.0));
+    ResponseRegisterUser {
+        state: ResponseRegisterUserState::Success,
+        info: Some(RegisterUserInfo {
+            id: user_id,
+            session_id: user_session_id.to_string(),
+        }),
+    }
+    .into()
 }
 
 pub async fn insert_user(pool: ConnectionPool, name: &str, passwd: &str) -> User {
     let (passwd, salt) = generate_salt_and_hash(&passwd);
     let current_time = time::OffsetDateTime::now_utc();
-    let user = InsertableUser {
-        name: name.to_string(),
-        passwd: passwd.to_vec(),
-        salt: salt.to_vec(),
-        user_create_time: Some(PrimitiveDateTime::new(
+
+    use crate::entity::users;
+    let user = users::ActiveModel {
+        id: NotSet,
+        name: Set(name.to_owned()),
+        passwd: Set(passwd.to_vec()),
+        salt: Set(salt.to_vec()),
+        user_create_time: Set(Some(PrimitiveDateTime::new(
             current_time.date(),
             current_time.time(),
-        )),
+        ))),
     };
-    sqlx::query_as::<_, User>(
-        "INSERT INTO users(name, passwd, salt, user_create_time) VALUES ($1, $2, $3, $4)",
-    )
-    .bind(user.name)
-    .bind(user.passwd)
-    .bind(user.salt)
-    .bind(user.user_create_time)
-    .fetch_one(&pool)
-    .await
-    .unwrap()
+    let user = user.insert(&pool).await.unwrap();
+    return User {
+        id: user.id,
+        name: user.name,
+        passwd: user.passwd,
+        salt: user.salt,
+        user_create_time: user.user_create_time,
+    };
+}
+
+pub async fn check_user_name_exists(pool: &ConnectionPool, name: &str) -> Result<bool, DbErr> {
+    use crate::entity::users;
+    users::Entity::find()
+        .filter(users::Column::Name.eq(""))
+        .count(pool)
+        .await
+        .map(|c| c != 0)
 }
