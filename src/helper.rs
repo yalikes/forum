@@ -7,6 +7,7 @@ use sqlx::Pool;
 use sqlx::Postgres;
 
 use serde::{Deserialize, Serialize};
+use time::{Duration, PrimitiveDateTime};
 use uuid::Uuid;
 
 #[derive(Deserialize)]
@@ -36,12 +37,11 @@ pub struct LoginInfo {
     pub password: String,
 }
 #[derive(Serialize, Debug)]
-pub enum ResponseResult{
+pub enum ResponseResult {
     Ok,
-    Err
+    Err,
 }
 
 pub type SessionId = Uuid;
-pub type SessionMap = Arc<RwLock<HashMap<Uuid, (i32, f32)>>>;
+pub type SessionMap = Arc<RwLock<HashMap<Uuid, (i32, PrimitiveDateTime, Duration)>>>;
 pub type ConnectionPool = DatabaseConnection;
-

@@ -12,6 +12,7 @@ use axum::{
 };
 
 use hyper::Method;
+use time::PrimitiveDateTime;
 use tracing::info_span;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -34,13 +35,15 @@ mod index;
 mod models;
 mod new_post;
 mod register_login;
-mod sqlx_helper;
 mod utils;
+mod user_utils;
+mod tools;
 mod entity;
 
 use helper::*;
 
 use crate::index::get_recent_post;
+use crate::new_post::post_create_post;
 use crate::register_login::register_user;
 use app_state::*;
 use get_post::*;
@@ -49,7 +52,7 @@ use get_post::*;
 async fn main() {
     dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must set");
-    let sessions: HashMap<SessionId, (i32, f32)> = HashMap::new(); //session_id => (userId, expr time limit)
+    let sessions: HashMap<SessionId, (i32, PrimitiveDateTime, time::Duration)> = HashMap::new(); //session_id => (userId, expr time limit)
     let sessions: SessionMap = Arc::new(RwLock::new(sessions));
 
     tracing_subscriber::registry()
@@ -60,7 +63,7 @@ async fn main() {
         .init();
 
     let mut opt = ConnectOptions::new(database_url);
-    opt.max_connections(12)
+    opt.max_connections(6)
         .min_connections(1)
         .connect_timeout(Duration::from_secs(8))
         .acquire_timeout(Duration::from_secs(8))
@@ -82,6 +85,10 @@ async fn main() {
         .route("/post/get/:post_id", get(get_post))
         .route("/post/get/floor/:post_id", get(get_floors))
         .route("/account/create", post(register_user))
+        .route("/account/login", post(||async {}))
+        .route("/post/create/post", post(post_create_post))
+        .route("/post/create/reply", post(||async {}))
+        .route("/post/create/floor/replay", post(||async {}))
         .with_state(state)
         .layer(TraceLayer::new_for_http())
         .layer(

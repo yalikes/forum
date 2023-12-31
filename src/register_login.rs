@@ -2,7 +2,6 @@ use core::panic;
 use std::borrow::BorrowMut;
 
 use crate::models::{InsertableUser, User};
-use crate::sqlx_helper::SqlxI32;
 use crate::utils::generate_salt_and_hash;
 use axum::extract::State;
 use axum::Json;
@@ -13,6 +12,7 @@ use sea_orm::{
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgRow;
 use sqlx::types::time::PrimitiveDateTime;
+use time::Duration;
 use tracing::debug;
 use uuid::Uuid;
 
@@ -76,10 +76,15 @@ pub async fn register_user(
     let user_id = insert_user(pool, &register_info.user_name, &register_info.password)
         .await
         .id;
-    sessions
-        .write()
-        .unwrap()
-        .insert(user_session_id, (user_id, 24.0 * 60.0 * 60.0));
+    let current_time = time::OffsetDateTime::now_utc();
+    sessions.write().unwrap().insert(
+        user_session_id,
+        (
+            user_id,
+            PrimitiveDateTime::new(current_time.date(), current_time.time()),
+            Duration::DAY,
+        ),
+    );
     ResponseRegisterUser {
         state: ResponseRegisterUserState::Success,
         info: Some(RegisterUserInfo {
