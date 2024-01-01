@@ -44,7 +44,7 @@ use helper::*;
 
 use crate::index::get_recent_post;
 use crate::new_post::post_create_post;
-use crate::register_login::register_user;
+use crate::register_login::{register_user, login};
 use app_state::*;
 use get_post::*;
 
@@ -85,7 +85,7 @@ async fn main() {
         .route("/post/get/:post_id", get(get_post))
         .route("/post/get/floor/:post_id", get(get_floors))
         .route("/account/create", post(register_user))
-        .route("/account/login", post(||async {}))
+        .route("/account/login", post(login))
         .route("/post/create/post", post(post_create_post))
         .route("/post/create/reply", post(||async {}))
         .route("/post/create/floor/replay", post(||async {}))

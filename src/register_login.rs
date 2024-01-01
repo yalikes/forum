@@ -2,7 +2,8 @@ use core::panic;
 use std::borrow::BorrowMut;
 
 use crate::models::{InsertableUser, User};
-use crate::utils::generate_salt_and_hash;
+use crate::tools::now;
+use crate::utils::{check, generate_salt_and_hash};
 use axum::extract::State;
 use axum::Json;
 use sea_orm::ActiveValue::NotSet;
@@ -12,6 +13,7 @@ use sea_orm::{
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgRow;
 use sqlx::types::time::PrimitiveDateTime;
+use time::format_description::modifier::Day;
 use time::Duration;
 use tracing::debug;
 use uuid::Uuid;
@@ -127,4 +129,153 @@ pub async fn check_user_name_exists(pool: &ConnectionPool, name: &str) -> Result
         .count(pool)
         .await
         .map(|c| c != 0)
+}
+
+#[derive(Debug, Deserialize)]
+pub enum LoginType {
+    UserName,
+    UserId,
+}
+#[derive(Debug, Deserialize)]
+pub struct RequestUserLogin {
+    user_name: Option<String>,
+    user_id: Option<i32>,
+    password: String,
+    login_type: LoginType,
+}
+
+#[derive(Debug, Serialize)]
+pub enum UserLoginState {
+    Success,
+    Error,
+    UserNameNotExists,
+    WrongPassword,
+    InnerServerError,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ResponseUserLogin {
+    state: UserLoginState,
+    info: Option<UserLoginInfo>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UserLoginInfo {
+    session_id: String,
+}
+
+pub async fn login(
+    State(sessions): State<SessionMap>,
+    State(pool): State<ConnectionPool>,
+    Json(request_info): Json<RequestUserLogin>,
+) -> Json<ResponseUserLogin> {
+    let login_type = request_info.login_type;
+    let user_id = match login_type {
+        LoginType::UserId => {
+            let user_id = request_info.user_id;
+            if user_id.is_none() {
+                return ResponseUserLogin {
+                    state: UserLoginState::Error,
+                    info: None,
+                }
+                .into();
+            }
+            user_id.unwrap()
+        }
+        LoginType::UserName => {
+            let user_name = request_info.user_name;
+            if user_name.is_none() {
+                return ResponseUserLogin {
+                    state: UserLoginState::Error,
+                    info: None,
+                }
+                .into();
+            }
+            let user_name = user_name.unwrap();
+            let may_user_id = match get_user_id_from_user_name(&pool, &user_name).await {
+                Ok(u) => u,
+                Err(e) => {
+                    return ResponseUserLogin {
+                        state: UserLoginState::InnerServerError,
+                        info: None,
+                    }
+                    .into();
+                }
+            };
+            match may_user_id {
+                Some(u) => u,
+                None => {
+                    return ResponseUserLogin {
+                        state: UserLoginState::UserNameNotExists,
+                        info: None,
+                    }
+                    .into();
+                }
+            }
+        }
+    };
+    let (password, salt) = match get_password_and_salt(&pool, user_id).await {
+        Ok(may_passwd_salt) => match may_passwd_salt {
+            Some(p_s) => p_s,
+            None => {
+                return ResponseUserLogin {
+                    state: UserLoginState::InnerServerError,
+                    info: None,
+                }
+                .into();
+            }
+        },
+        Err(e) => {
+            return ResponseUserLogin {
+                state: UserLoginState::InnerServerError,
+                info: None,
+            }
+            .into();
+        }
+    };
+    if !check(&request_info.password, &salt, &password) {
+        return ResponseUserLogin {
+            state: UserLoginState::WrongPassword,
+            info: None,
+        }
+        .into();
+    }
+    let new_uuid = uuid::Uuid::new_v4();
+    sessions
+        .write()
+        .unwrap()
+        .insert(new_uuid, (user_id, now(), time::Duration::DAY));
+    ResponseUserLogin {
+        state: UserLoginState::Success,
+        info: Some(UserLoginInfo {
+            session_id: new_uuid.to_string(),
+        }),
+    }
+    .into()
+}
+
+pub async fn get_user_id_from_user_name(
+    pool: &ConnectionPool,
+    user_name: &str,
+) -> Result<Option<i32>, DbErr> {
+    use crate::entity::users;
+    users::Entity::find()
+        .filter(users::Column::Name.eq(user_name))
+        .one(pool)
+        .await
+        .map(|m| m.map(|u| u.id))
+}
+
+pub async fn get_password_and_salt(
+    pool: &ConnectionPool,
+    user_id: i32,
+) -> Result<Option<([u8; 32], [u8; 32])>, DbErr> {
+    use crate::entity::users;
+    users::Entity::find_by_id(user_id).one(pool).await.map(|m| {
+        m.map(|u| {
+            let password: [u8; 32] = u.passwd.try_into().unwrap();
+            let salt: [u8; 32] = u.salt.try_into().unwrap();
+            (password, salt)
+        })
+    })
 }

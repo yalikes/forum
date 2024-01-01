@@ -44,21 +44,19 @@ pub async fn post_create_post(
     State(pool): State<ConnectionPool>,
     Json(request_info): Json<CreatePostRequest>,
 ) -> Json<ResponseCreatePost> {
-    let user_id_and_time = {
-        let sessions_guard = sessions.read().unwrap();
-        let user_id_and_time =
-            sessions_guard.get(&uuid::Uuid::from_str(&request_info.session_id).unwrap());
-        let user_id_and_time = match user_id_and_time {
-            Some(id) => *id,
-            None => {
-                return ResponseCreatePost {
-                    state: CreatePostState::NeedLogin,
-                    info: None,
-                }
-                .into();
+    let user_id_and_time = get_user_id_info(
+        sessions,
+        uuid::Uuid::from_str(&request_info.session_id).unwrap(),
+    );
+    let user_id_and_time = match user_id_and_time {
+        Some(id) => id,
+        None => {
+            return ResponseCreatePost {
+                state: CreatePostState::NeedLogin,
+                info: None,
             }
-        };
-        user_id_and_time
+            .into();
+        }
     };
     if !check_session_valid(user_id_and_time.1, user_id_and_time.2) {
         return ResponseCreatePost {
@@ -97,10 +95,13 @@ pub async fn post_create_post(
             .into();
         }
     };
-    ResponseCreatePost{
+    ResponseCreatePost {
         state: CreatePostState::Success,
-        info: Some(CreatePostInfo{post_id: new_post.id})
-    }.into()
+        info: Some(CreatePostInfo {
+            post_id: new_post.id,
+        }),
+    }
+    .into()
 }
 
 async fn insert_new_post(
@@ -134,4 +135,11 @@ async fn insert_new_floor(
         floor_create_time: Set(Some(time_now)),
     };
     new_floor.insert(pool).await
+}
+
+pub fn get_user_id_info(
+    sessions: SessionMap,
+    session_id: uuid::Uuid,
+) -> Option<(i32, PrimitiveDateTime, time::Duration)> {
+    sessions.read().unwrap().get(&session_id).map(|e| *e)
 }
