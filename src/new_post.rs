@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use axum::{extract::State, Json};
+use axum::{extract::State, Json, debug_handler};
 use sea_orm::{ActiveModelTrait, ActiveValue::NotSet, DbErr, Set};
 use serde::{Deserialize, Serialize};
 use time::PrimitiveDateTime;
@@ -11,7 +11,7 @@ use crate::{
     helper::{ConnectionPool, SessionMap},
     models::Post,
     tools::now,
-    user_utils::check_session_valid,
+    user_utils::check_session_valid, app_state::AppState,
 };
 
 #[derive(Debug, Deserialize)]
@@ -39,6 +39,7 @@ pub struct CreatePostInfo {
     post_id: i32,
 }
 
+#[debug_handler(state = AppState)]
 pub async fn post_create_post(
     State(sessions): State<SessionMap>,
     State(pool): State<ConnectionPool>,
